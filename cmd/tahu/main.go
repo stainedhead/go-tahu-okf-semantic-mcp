@@ -57,6 +57,7 @@ knowledge bases over stdio or HTTP/SSE.`,
 	root.AddCommand(buildBundle())
 	root.AddCommand(buildSearch())
 	root.AddCommand(buildConcept())
+	root.AddCommand(buildVersionCmd())
 
 	return root
 }
@@ -418,6 +419,20 @@ func initLogger(level string) {
 	}
 	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
 	slog.SetDefault(slog.New(handler))
+}
+
+// ---------------------------------------------------------------------------
+// version
+// ---------------------------------------------------------------------------
+
+func buildVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("tahu %s\n", version)
+		},
+	}
 }
 
 // parseConceptRef parses "alias:relative/path.md" into a domain.ConceptRef.
