@@ -15,8 +15,8 @@
 | 2 | Research & Data Modeling | ✅ Complete | RQ-3 closed; coder/hnsw + mcp-go confirmed |
 | 3 | Architecture & Planning | ✅ Complete | plan.md + tasks.md phased; 8-phase inward-out plan |
 | 4 | Task Breakdown | ✅ Complete | tasks.md P1.1–P8.4 with deps and estimates |
-| 5 | Implementation | 🔄 In Progress | Domain → deps → use cases → adapters → infra/cmd |
-| 6 | Completion & Archival | Not Started | |
+| 5 | Implementation | ✅ Complete | All 14 MCP tools, domain, use cases, adapters, infra/cmd — lint clean, tests pass |
+| 6 | Completion & Archival | ✅ Complete | Docs updated (README, user-docs/, documents/), archiving as part of dev-flow Step 7 |
 
 ---
 
