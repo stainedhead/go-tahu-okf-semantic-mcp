@@ -316,10 +316,52 @@ EmbeddingChunk
 - Authentication / authorization on the MCP server.
 - Windows support (Linux and macOS only for v0.1).
 - Bundle replication or sync between daemon instances.
+- Metrics and tracing SDKs (structured logs + `healthz` are the observability surface for v0.1).
 
 ---
 
-## 12. Open Questions
+## 12. Acceptance Criteria
+
+One AC per goal. All must pass before v0.1 is considered shippable.
+
+| Goal | Acceptance Criteria |
+|---|---|
+| **G1** | `bundle_add` rejects a path that does not exist on disk or contains no `.md` files. `bundle_remove` unregisters without deleting files. `bundle_list` includes alias, root_path, concept_count, and last_indexed_at. `bundle_reindex` completes without error and updates last_indexed_at. |
+| **G2** | `concept_read` returns parsed frontmatter + body for a valid ref; returns structured not-found error for a missing path. `concept_list` returns all non-reserved `.md` files at the given level; returns empty list (not error) for a non-existent directory. `index_read` / `log_read` return raw content or structured not-found. `concept_links` returns all outbound link targets; broken links are included with `broken: true` rather than silently omitted. |
+| **G3** | `search_semantic` and `search_keyword` return a ranked list of chunks, each with `{source: "alias:path", chunk_text, score}`. A path-scoped query returns only chunks whose source path is under that directory. A bundle-scoped query returns only chunks from that bundle. No network call is made during any search operation. |
+| **G4** | `concept_write` returns a structured error when frontmatter is missing the `type` field. `concept_write` returns a structured error when the target path is `index.md` or `log.md` at any directory level. After a successful write, `index.md` for the affected directory is regenerated and a timestamped entry is appended to `log.md`. |
+| **G5** | `go build ./cmd/tahu` produces a working binary. In BM25 mode (`embedding.model: bm25`), the binary runs without any additional install step on Linux (amd64) and macOS (arm64). No Python, Node, Docker, or cloud SDK is required in either embedding mode. |
+| **G6** | All 14 MCP tools respond correctly in both `--transport stdio` and `--transport http` modes. A client in stdio mode and a client in HTTP/SSE mode calling the same tool with the same input receive the same output. |
+| **G7** | After daemon restart with an existing index, `search_semantic` returns the same top-K results for the same query without re-invoking the embedder. If the index file is absent or unreadable at startup, the daemon starts successfully and rebuilds the index lazily on the first `search_semantic` or `search_rag` call. |
+| **G8** | `search_rag` accepts query, scope, `top_k` (default 5, max 20), and `min_score` (default 0.0). Returns up to `top_k` chunks with `score >= min_score` in descending order, each with `{source, chunk_index, chunk_text, score}`. Returns an empty list if no chunks meet the threshold. Scope enforcement matches AC-G3. The response contains no synthesized answer. |
+
+---
+
+## 13. Security
+
+The daemon accepts user-supplied paths and agent-provided content over its MCP interface. The following constraints apply at the adapter boundary:
+
+- **Path confinement**: All user-supplied paths (concept refs, scope paths) are canonicalized (`filepath.Clean` + `filepath.EvalSymlinks`) and validated to be within a registered bundle root before any read or write. Paths that escape the bundle root return a structured permission-denied error.
+- **HTTP bind address**: HTTP transport binds to `127.0.0.1` by default. A `--bind` flag allows override. Binding to `0.0.0.0` is the operator's explicit choice and documented as such.
+- **Input validation**: All MCP tool inputs are validated against declared JSON Schema at the adapter boundary before reaching the use case layer. Concept body input is capped at 1 MB; all other string inputs are capped at 4 KB.
+
+---
+
+## 14. Observability
+
+| Concern | Decision |
+|---|---|
+| Log format | Structured JSON via stdlib `slog` |
+| Log fields | `level`, `time`, `request_id`, `bundle`, `tool`, `duration_ms`, `error` |
+| Request ID | Generated per MCP tool invocation; propagated through context for end-to-end log correlation |
+| Health endpoint | HTTP mode exposes `GET /healthz` returning `200 OK` once the daemon is ready to serve |
+| stdio health | No health endpoint in stdio mode |
+| Metrics | Out of scope for v0.1 |
+| Tracing SDK | Out of scope for v0.1 |
+
+---
+
+## 15. Open Questions
 
 | # | Question | Owner | Status |
 |---|---|---|---|
@@ -331,11 +373,14 @@ EmbeddingChunk
 
 ---
 
-## 13. References
+## 16. References
 
 - OKF SPEC: `github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md`
 - OKF site: `okf.md`
 - Google Cloud blog announcement: June 12, 2026
 - Existing MCP reference: `github.com/mfdaves/okf-mcp`
 - ONNX Runtime Go: `github.com/yalue/onnxruntime_go`
+- HNSW index: `github.com/coder/hnsw` (Apache 2.0, pure-Go)
+- YAML parser: `gopkg.in/yaml.v3`
+- Markdown parser: `github.com/yuin/goldmark` (pure-Go AST)
 - MCP specification: `modelcontextprotocol.io`
