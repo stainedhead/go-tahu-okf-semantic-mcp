@@ -10,12 +10,12 @@
 
 | Phase | Name | Status | Notes |
 |---|---|---|---|
-| 0 | Initial Research / Spec Creation | 🔄 In Progress | Spec directory initialized |
-| 1 | Specification | Not Started | |
-| 2 | Research & Data Modeling | Not Started | |
-| 3 | Architecture & Planning | Not Started | |
-| 4 | Task Breakdown | Not Started | |
-| 5 | Implementation | Not Started | |
+| 0 | Initial Research / Spec Creation | ✅ Complete | Spec dir created, MCP SDK resolved, ACs added |
+| 1 | Specification | ✅ Complete | spec.md, data-dictionary.md, architecture.md complete |
+| 2 | Research & Data Modeling | ✅ Complete | RQ-3 closed; coder/hnsw + mcp-go confirmed |
+| 3 | Architecture & Planning | ✅ Complete | plan.md + tasks.md phased; 8-phase inward-out plan |
+| 4 | Task Breakdown | ✅ Complete | tasks.md P1.1–P8.4 with deps and estimates |
+| 5 | Implementation | 🔄 In Progress | Domain → deps → use cases → adapters → infra/cmd |
 | 6 | Completion & Archival | Not Started | |
 
 ---
