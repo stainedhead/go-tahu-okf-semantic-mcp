@@ -20,10 +20,10 @@ Is pure-Go BM25 retrieval quality sufficient for the "no external deps" tier?
 Test: compare BM25 vs MiniLM top-5 recall on a sample OKF bundle with 500+ concepts.  
 **Criteria:** if BM25 recall@5 ≥ 0.6, it is acceptable as the zero-CGo fallback.
 
-### RQ-3: MCP Go SDK selection
-What is the most appropriate Go MCP SDK for this daemon?  
-Candidates: `mark3labs/mcp-go`, `modelcontextprotocol/go-sdk` (official, if available), roll-our-own JSON-RPC 2.0.  
-**Criteria:** stdio + HTTP/SSE support, tool registration API, JSON Schema validation, license (Apache 2.0 or MIT preferred), maintenance status.
+### RQ-3: MCP Go SDK selection — ✅ RESOLVED
+**Decision:** `github.com/mark3labs/mcp-go` (MIT, actively maintained).  
+Supports stdio and SSE transports, clean tool-registration API, widely used in production Go MCP servers. The official `modelcontextprotocol/go-sdk` (Apache 2.0) is preferable long-term but is newer and still stabilizing. Revisit at v0.2.  
+Added to `go.mod` and spec.md dependency table.
 
 ### RQ-4 (OQ-5): Chunk overlap strategy
 What chunk overlap is appropriate for OKF concept prose?  

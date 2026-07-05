@@ -201,7 +201,8 @@ pkg/                         Exportable utilities (OKF codec, chunk helpers)
 | `github.com/coder/hnsw` | Pure-Go HNSW vector index |
 | `gopkg.in/yaml.v3` | YAML frontmatter parsing |
 | `github.com/yuin/goldmark` | Markdown AST for link extraction |
-| MCP Go SDK | MCP protocol (TBD: official or community) |
+| `github.com/mark3labs/mcp-go` | MCP protocol — stdio + SSE transports, tool registration (MIT, actively maintained) |
+| `github.com/spf13/cobra` | CLI subcommand framework |
 
 ### Breaking Changes
 None — greenfield.
@@ -220,6 +221,22 @@ None — greenfield.
 | G6 | All 14 tools respond identically in stdio and HTTP/SSE modes. |
 | G7 | After restart, `search_semantic` returns same results without re-embedding. Cold-start rebuilds index lazily. |
 | G8 | `search_rag` respects `top_k`/`min_score`, returns `{source, chunk_index, chunk_text, score}`. Empty list when no chunks meet threshold. |
+
+| FR-015–017 | All 14 tools return identical output in stdio and HTTP/SSE modes for the same input. HTTP mode binds to `127.0.0.1` by default. `GET /healthz` returns `200 OK` once ready. |
+| FR-018 | `tahu --help` lists all subcommands. `tahu bundle add <path> --alias <name>` registers the bundle and prints the alias. |
+| FR-019 | A concept ref containing `../../etc/passwd` (or any path that escapes the bundle root after `EvalSymlinks`) returns a structured `permission-denied` error — not file contents. |
+| FR-020 | A `concept_write` request with a body > 1 MB returns a structured `input-too-large` error before the use case is invoked. |
+| FR-021 | Every MCP tool invocation emits at least one JSON log line containing `request_id`, `tool`, `duration_ms`, and `level`. Two sequential calls produce distinct `request_id` values. |
+
+### Edge Case Acceptance Criteria
+
+| Edge Case | Expected Behaviour |
+|---|---|
+| Concurrent `concept_write` to same path | Second write waits; both complete without data corruption. Bundle-level write mutex ensures serialization. |
+| `log.md` absent on first write | `concept_write` creates `log.md` if it does not exist, then appends the entry. |
+| `search_semantic` on bundle with zero concepts | Returns empty chunk list; does not panic or error. |
+| `bundle_add` with a bundle root that contains only `index.md` | Accepted — `index.md` counts as an `.md` file; bundle is registered. |
+| `concept_read` on a bundle whose root path was deleted after registration | Returns structured not-found error (domain error, not OS panic). |
 
 **Quality gates:**
 - All tests pass with `go test -race ./...`

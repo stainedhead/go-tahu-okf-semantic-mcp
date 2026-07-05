@@ -26,9 +26,9 @@
 - [x] PRD moved into spec directory
 - [x] `spec.md` populated from PRD
 - [x] Phase files initialized (research.md, data-dictionary.md, architecture.md, plan.md, tasks.md, implementation-notes.md)
-- [ ] Research questions reviewed and prioritized
-- [ ] Open questions (OQ-1 through OQ-5) assigned for resolution
-- [ ] MCP Go SDK selection confirmed (see research.md)
+- [x] Research questions reviewed and prioritized
+- [x] Open questions (OQ-1 through OQ-5) assigned for resolution
+- [x] MCP Go SDK selection confirmed: `mark3labs/mcp-go` (RQ-3 closed)
 
 ---
 
@@ -41,3 +41,4 @@ _None currently._
 ## Recent Activity
 
 - 2026-07-05: Spec directory created; all phase files initialized from PRD
+- 2026-07-05: Spec review completed — all warnings resolved: RQ-3 closed (mcp-go selected), ACs added for FR-015–FR-021, edge cases documented
