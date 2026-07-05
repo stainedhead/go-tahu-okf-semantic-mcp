@@ -324,9 +324,11 @@ All commits must follow `<type>(<scope>): <description>`. The CD pipeline uses t
 
 ### PR Rules (agents must follow)
 
-1. **Always use `--auto-merge`** when creating PRs:
+1. **Enable auto-merge immediately after creating a PR:**
    ```bash
-   gh pr create --auto-merge --title "..." --body "..."
+   PR_URL=$(gh pr create --title "..." --body "...")
+   PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+   gh pr merge "$PR_NUM" --auto --merge
    ```
 2. **Monitor CI after opening the PR.** Read failures and push fixes until auto-merge completes:
    ```bash
