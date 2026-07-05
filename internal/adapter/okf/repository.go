@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
@@ -83,8 +82,9 @@ func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*dom
 	return concept, nil
 }
 
-// Put creates or replaces a concept document, then regenerates index.md and
-// appends an entry to log.md for the affected directory.
+// Put creates or replaces a concept document on disk.  It does not regenerate
+// index.md or append to log.md — that responsibility belongs to the use-case
+// layer (ConceptService) which calls Put and then handles index/log updates.
 func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, concept *domain.OKFConcept) error {
 	root, err := f.bundleRoot(ref.BundleAlias)
 	if err != nil {
@@ -114,23 +114,6 @@ func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, conce
 
 	if err := os.WriteFile(absPath, data, 0o644); err != nil {
 		return fmt.Errorf("Put %s: write: %w", ref, err)
-	}
-
-	// Regenerate index.md for the affected directory.
-	dirPath := filepath.Dir(absPath)
-	indexContent, err := GenerateIndex(root, dirPath)
-	if err != nil {
-		return fmt.Errorf("Put %s: generate index: %w", ref, err)
-	}
-	indexPath := filepath.Join(dirPath, "index.md")
-	if err := os.WriteFile(indexPath, []byte(indexContent), 0o644); err != nil {
-		return fmt.Errorf("Put %s: write index: %w", ref, err)
-	}
-
-	// Append timestamped entry to log.md.
-	logEntry := fmt.Sprintf("wrote %s", ref.RelativePath)
-	if err := AppendLog(root, dirPath, logEntry, time.Now()); err != nil {
-		return fmt.Errorf("Put %s: append log: %w", ref, err)
 	}
 
 	return nil

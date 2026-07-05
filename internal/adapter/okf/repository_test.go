@@ -5,9 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/okf"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
@@ -136,75 +134,34 @@ func TestFileNodeRepository_Put_RejectsMissingType_FR011(t *testing.T) {
 	}
 }
 
-// TestFileNodeRepository_Put_RegeneratesIndex verifies that a successful Put
-// regenerates index.md in the affected directory (spec FR-011).
-func TestFileNodeRepository_Put_RegeneratesIndex(t *testing.T) {
-	repo, dir := makeRepo(t)
-	ctx := context.Background()
-
+// TestFileNodeRepository_Put_WritesOnlyConceptFile_FIX002 verifies that Put
+// writes only the concept file and does NOT create index.md or log.md.
+// Index/log regeneration is the use case layer's responsibility (FIX-002).
+func TestFileNodeRepository_Put_WritesOnlyConceptFile_FIX002(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	repo := okf.NewFileNodeRepository(map[string]string{"kb": dir})
+	ref := domain.ConceptRef{BundleAlias: "kb", RelativePath: "note.md"}
 	concept := &domain.OKFConcept{
-		Frontmatter: domain.OKFFrontmatter{
-			Type:  "guide",
-			Title: "My Guide",
-		},
-		Body: "# My Guide\n",
+		Frontmatter: domain.OKFFrontmatter{Type: "note", Title: "Test Note"},
+		Body:        "test body",
 	}
 
-	ref := domain.ConceptRef{BundleAlias: testAlias, RelativePath: "my-guide.md"}
-	if err := repo.Put(ctx, ref, concept); err != nil {
-		t.Fatalf("Put: %v", err)
+	if err := repo.Put(context.Background(), ref, concept); err != nil {
+		t.Fatalf("Put failed: %v", err)
 	}
 
-	indexPath := filepath.Join(dir, "index.md")
-	data, err := os.ReadFile(indexPath)
-	if err != nil {
-		t.Fatalf("read index.md: %v", err)
+	// The concept file must exist.
+	if _, err := os.Stat(filepath.Join(dir, "note.md")); err != nil {
+		t.Errorf("concept file not created: %v", err)
 	}
-
-	content := string(data)
-	if !strings.Contains(content, "my-guide.md") {
-		t.Errorf("index.md does not contain 'my-guide.md':\n%s", content)
+	// index.md must NOT exist — Put should not create it; that's the use case's job.
+	if _, err := os.Stat(filepath.Join(dir, "index.md")); err == nil {
+		t.Error("FIX-002: Put must not create index.md; regenerateIndex in use case is responsible")
 	}
-}
-
-// TestFileNodeRepository_Put_AppendsLog verifies that a successful Put appends
-// a timestamped entry to log.md, creating the file if absent (spec FR-011,
-// edge case: log.md absent on first write).
-func TestFileNodeRepository_Put_AppendsLog(t *testing.T) {
-	repo, dir := makeRepo(t)
-	ctx := context.Background()
-
-	// Ensure log.md does not exist before the first write.
-	logPath := filepath.Join(dir, "log.md")
-	if _, err := os.Stat(logPath); err == nil {
-		t.Fatal("log.md should not exist before first Put")
-	}
-
-	concept := &domain.OKFConcept{
-		Frontmatter: domain.OKFFrontmatter{
-			Type:  "note",
-			Title: "Test Note",
-		},
-		Body: "# Test\n",
-	}
-
-	ref := domain.ConceptRef{BundleAlias: testAlias, RelativePath: "note.md"}
-	if err := repo.Put(ctx, ref, concept); err != nil {
-		t.Fatalf("Put: %v", err)
-	}
-
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log.md: %v", err)
-	}
-
-	content := string(data)
-	today := time.Now().Format("2006-01-02")
-	if !strings.Contains(content, today) {
-		t.Errorf("log.md does not contain today's date %s:\n%s", today, content)
-	}
-	if !strings.Contains(content, "note.md") {
-		t.Errorf("log.md does not mention note.md:\n%s", content)
+	// log.md must NOT exist — Put should not create it; that's the use case's job.
+	if _, err := os.Stat(filepath.Join(dir, "log.md")); err == nil {
+		t.Error("FIX-002: Put must not create log.md; appendLog in use case is responsible")
 	}
 }
 
