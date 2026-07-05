@@ -145,7 +145,7 @@ func TestHNSWStore_Search_ScopeBundleFilters(t *testing.T) {
 	// chunk would rank first.
 	chunkAlpha1 := makeChunk("alpha:p1:0", "alpha", "p1.md", 0, norm([]float32{3, 4, 0, 0})) // sim=0.6
 	chunkAlpha2 := makeChunk("alpha:p2:0", "alpha", "p2.md", 0, norm([]float32{1, 1, 0, 0})) // sim≈0.71
-	chunkBeta := makeChunk("beta:p1:0", "beta", "p1.md", 0, []float32{1, 0, 0, 0})            // sim=1.0
+	chunkBeta := makeChunk("beta:p1:0", "beta", "p1.md", 0, []float32{1, 0, 0, 0})           // sim=1.0
 
 	if err := s.Upsert(ctx, []domain.EmbeddingChunk{chunkAlpha1, chunkAlpha2, chunkBeta}); err != nil {
 		t.Fatalf("Upsert: %v", err)

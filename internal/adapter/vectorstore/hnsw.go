@@ -300,7 +300,7 @@ func (s *HNSWStore) readGraph() error {
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := s.graph.Import(bufio.NewReader(f)); err != nil {
 		return fmt.Errorf("import graph: %w", err)
@@ -320,7 +320,7 @@ func (s *HNSWStore) readMeta() error {
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := json.NewDecoder(f).Decode(&s.chunks); err != nil {
 		return fmt.Errorf("decode meta: %w", err)

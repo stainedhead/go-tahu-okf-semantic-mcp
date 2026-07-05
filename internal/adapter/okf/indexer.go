@@ -1,3 +1,5 @@
+// Package okf implements OKF document parsing, link extraction, index/log
+// generation, and the NodeRepository backed by the local filesystem.
 package okf
 
 import (
@@ -12,7 +14,7 @@ import (
 // GenerateIndex lists all non-reserved .md files in dirPath (non-recursive),
 // reads their frontmatter for type and title, and returns a formatted markdown
 // index table as a string.
-func GenerateIndex(bundleRoot, dirPath string) (string, error) {
+func GenerateIndex(_, dirPath string) (string, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return "", fmt.Errorf("GenerateIndex: read dir %q: %w", dirPath, err)
@@ -73,8 +75,8 @@ func GenerateIndex(bundleRoot, dirPath string) (string, error) {
 	sb.WriteString("| File | Type | Title |\n")
 	sb.WriteString("|---|---|---|\n")
 	for _, c := range concepts {
-		sb.WriteString(fmt.Sprintf("| [%s](%s) | %s | %s |\n",
-			c.filename, c.filename, c.typ, c.title))
+		fmt.Fprintf(&sb, "| [%s](%s) | %s | %s |\n",
+			c.filename, c.filename, c.typ, c.title)
 	}
 
 	return sb.String(), nil
@@ -83,7 +85,7 @@ func GenerateIndex(bundleRoot, dirPath string) (string, error) {
 // AppendLog reads the existing log.md in dirPath (creating it if absent),
 // prepends a new timestamped entry under today's date header (newest-first),
 // and writes the file back.
-func AppendLog(bundleRoot, dirPath string, entry string, timestamp time.Time) error {
+func AppendLog(_, dirPath string, entry string, timestamp time.Time) error {
 	logPath := filepath.Join(dirPath, "log.md")
 
 	var existing string

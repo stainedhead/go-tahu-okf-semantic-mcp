@@ -16,8 +16,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	mcpadapter "github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/mcp"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/embedder"
+	mcpadapter "github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/mcp"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/okf"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/vectorstore"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
@@ -63,10 +63,10 @@ knowledge bases over stdio or HTTP/SSE.`,
 
 func buildServe() *cobra.Command {
 	var (
-		transport_  string
-		port        int
-		bind        string
-		configPath  string
+		transportFlag string
+		port          int
+		bind          string
+		configPath    string
 	)
 
 	cmd := &cobra.Command{
@@ -74,14 +74,14 @@ func buildServe() *cobra.Command {
 		Short: "Start the MCP server",
 		Long: `Start the tahu MCP server. Use --transport stdio (default) for CLI
 agents or --transport http for orchestration pipelines.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("serve: load config: %w", err)
 			}
 			// Flag overrides (non-zero values win over config file).
 			if cmd.Flags().Changed("transport") {
-				cfg.Transport = transport_
+				cfg.Transport = transportFlag
 			}
 			if cmd.Flags().Changed("port") {
 				cfg.Port = port
@@ -123,7 +123,7 @@ agents or --transport http for orchestration pipelines.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&transport_, "transport", "stdio", "MCP transport: stdio|http")
+	cmd.Flags().StringVar(&transportFlag, "transport", "stdio", "MCP transport: stdio|http")
 	cmd.Flags().IntVar(&port, "port", 0, "TCP port for HTTP transport (default from config: 3000)")
 	cmd.Flags().StringVar(&bind, "bind", "", "Bind address for HTTP transport (default from config: 127.0.0.1)")
 	cmd.Flags().StringVar(&configPath, "config", "", "Config file path (default: ~/.tahu/config.yaml)")
@@ -150,7 +150,7 @@ func buildBundleList() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all registered OKF bundles",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -165,13 +165,13 @@ func buildBundleList() *cobra.Command {
 				return nil
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "ALIAS\tROOT_PATH\tCONCEPT_COUNT\tLAST_INDEXED_AT")
+			_, _ = fmt.Fprintln(w, "ALIAS\tROOT_PATH\tCONCEPT_COUNT\tLAST_INDEXED_AT")
 			for _, b := range bundles {
 				indexedAt := "-"
 				if !b.LastIndexedAt.IsZero() {
 					indexedAt = b.LastIndexedAt.Format("2006-01-02T15:04:05Z")
 				}
-				fmt.Fprintf(w, "%s\t%s\t%d\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\n",
 					b.Alias, b.RootPath, b.ConceptCount, indexedAt)
 			}
 			return w.Flush()
@@ -186,7 +186,7 @@ func buildBundleAdd() *cobra.Command {
 		Use:   "add <path>",
 		Short: "Register an OKF bundle by filesystem path",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -215,7 +215,7 @@ func buildBundleReindex() *cobra.Command {
 		Use:   "reindex <alias>",
 		Short: "Force a full re-embed and reindex of a bundle",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -251,7 +251,7 @@ func buildSearch() *cobra.Command {
 		Use:   "search <query>",
 		Short: "Run a RAG semantic search over registered bundles",
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			query := args[0]
 			cfg, err := config.Load()
 			if err != nil {
@@ -301,7 +301,7 @@ func buildConceptRead() *cobra.Command {
 		Use:   "read <alias:relative/path.md>",
 		Short: "Read and print an OKF concept",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
@@ -328,13 +328,6 @@ func buildConceptRead() *cobra.Command {
 // ---------------------------------------------------------------------------
 // DI wiring helpers
 // ---------------------------------------------------------------------------
-
-// builtServices holds the fully wired service graph and the vector store (so
-// callers can persist it on shutdown without re-constructing services).
-type builtServices struct {
-	mcpadapter.Services
-	store domain.VectorStore
-}
 
 // buildServices constructs the full dependency graph from cfg. It:
 //  1. Creates the YAML bundle registry.

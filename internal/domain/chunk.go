@@ -8,7 +8,7 @@ import (
 // EmbeddingChunk is a text chunk with its vector embedding, stored in the
 // vector index. ID format: "alias:path:chunk_index".
 type EmbeddingChunk struct {
-	ID                 string    // "alias:path:chunk_index"
+	ID                 string // "alias:path:chunk_index"
 	BundleAlias        string
 	ConceptPath        string
 	ChunkIndex         int
@@ -19,7 +19,7 @@ type EmbeddingChunk struct {
 
 // ScoredChunk is a retrieved chunk with its similarity score.
 type ScoredChunk struct {
-	Source             string  // "alias:path"
+	Source             string // "alias:path"
 	ChunkIndex         int
 	ChunkText          string
 	Score              float32
@@ -29,6 +29,7 @@ type ScoredChunk struct {
 // ScopeKind enumerates the supported search scope levels.
 type ScopeKind int
 
+// ScopeKind constant values for the three supported search scopes.
 const (
 	ScopeGlobal ScopeKind = iota // search across all bundles
 	ScopeBundle                  // restrict to one bundle

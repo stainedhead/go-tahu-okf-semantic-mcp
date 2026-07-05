@@ -150,7 +150,7 @@ func (s *ConceptService) regenerateIndex(ctx context.Context, ref domain.Concept
 	if len(refs) > 0 {
 		sb.WriteString("| Path | Type |\n|------|------|\n")
 		for _, r := range refs {
-			sb.WriteString(fmt.Sprintf("| %s | |\n", path.Base(r.RelativePath)))
+			fmt.Fprintf(&sb, "| %s | |\n", path.Base(r.RelativePath))
 		}
 	}
 

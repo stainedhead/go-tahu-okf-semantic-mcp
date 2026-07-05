@@ -48,7 +48,7 @@ func (f *FileNodeRepository) bundleRoot(alias string) (string, error) {
 }
 
 // Get retrieves a parsed OKFConcept by ref.
-func (f *FileNodeRepository) Get(ctx context.Context, ref domain.ConceptRef) (*domain.OKFConcept, error) {
+func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*domain.OKFConcept, error) {
 	root, err := f.bundleRoot(ref.BundleAlias)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (f *FileNodeRepository) Get(ctx context.Context, ref domain.ConceptRef) (*d
 
 // Put creates or replaces a concept document, then regenerates index.md and
 // appends an entry to log.md for the affected directory.
-func (f *FileNodeRepository) Put(ctx context.Context, ref domain.ConceptRef, concept *domain.OKFConcept) error {
+func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, concept *domain.OKFConcept) error {
 	root, err := f.bundleRoot(ref.BundleAlias)
 	if err != nil {
 		return err
@@ -139,7 +139,7 @@ func (f *FileNodeRepository) Put(ctx context.Context, ref domain.ConceptRef, con
 // List returns refs for all non-reserved .md files under subPath within the
 // bundle.  If subPath is empty, the bundle root is searched.  A non-existent
 // subPath returns an empty list rather than an error.
-func (f *FileNodeRepository) List(ctx context.Context, bundleAlias string, subPath string) ([]domain.ConceptRef, error) {
+func (f *FileNodeRepository) List(_ context.Context, bundleAlias string, subPath string) ([]domain.ConceptRef, error) {
 	root, err := f.bundleRoot(bundleAlias)
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func (f *FileNodeRepository) ListTypes(ctx context.Context, bundleAlias string) 
 
 // ReadReserved returns the raw content of a reserved file at relPath within
 // the bundle.  Returns domain.ErrNotFound if the file does not exist.
-func (f *FileNodeRepository) ReadReserved(ctx context.Context, bundleAlias string, relPath string) (string, error) {
+func (f *FileNodeRepository) ReadReserved(_ context.Context, bundleAlias string, relPath string) (string, error) {
 	root, err := f.bundleRoot(bundleAlias)
 	if err != nil {
 		return "", err
@@ -242,7 +242,7 @@ func (f *FileNodeRepository) ReadReserved(ctx context.Context, bundleAlias strin
 }
 
 // WriteReserved creates or replaces a reserved file at relPath within the bundle.
-func (f *FileNodeRepository) WriteReserved(ctx context.Context, bundleAlias string, relPath string, content string) error {
+func (f *FileNodeRepository) WriteReserved(_ context.Context, bundleAlias string, relPath string, content string) error {
 	root, err := f.bundleRoot(bundleAlias)
 	if err != nil {
 		return err

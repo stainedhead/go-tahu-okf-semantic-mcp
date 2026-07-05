@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 	"gopkg.in/yaml.v3"
+
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
 
 // knownFMKeys are the standard OKF frontmatter keys in canonical write order.

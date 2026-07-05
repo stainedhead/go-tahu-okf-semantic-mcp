@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
+
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
 
 // ExtractLinks parses the markdown body and returns all outbound hyperlink

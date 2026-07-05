@@ -28,7 +28,7 @@ type Services struct {
 
 // HandleBundleList returns alias, root_path, concept_count, and last_indexed_at
 // for every registered bundle (FR-003).
-func (s *Services) HandleBundleList(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Services) HandleBundleList(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	bundles, err := s.Bundle.ListBundles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("bundle_list: %w", err)

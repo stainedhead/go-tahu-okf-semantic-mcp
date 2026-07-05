@@ -77,7 +77,9 @@ func ServeHTTP(ctx context.Context, srv *mcpserver.MCPServer, addr string) error
 
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// context.WithoutCancel strips the parent cancellation so the shutdown
+		// window is not immediately cancelled alongside ctx.
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		// Shut down SSE sessions first, then the HTTP listener.
 		_ = sseSrv.Shutdown(shutdownCtx)

@@ -5,10 +5,10 @@ import "time"
 // OKFFrontmatter holds the parsed YAML frontmatter for an OKF concept document.
 // Type is required per OKF v0.1; all other fields are optional.
 type OKFFrontmatter struct {
-	Type        string         // REQUIRED per OKF v0.1
+	Type        string // REQUIRED per OKF v0.1
 	Title       string
 	Description string
-	Resource    string         // URI of the described resource
+	Resource    string // URI of the described resource
 	Tags        []string
 	Timestamp   time.Time
 	Extra       map[string]any // unknown keys preserved in insertion order
@@ -18,7 +18,7 @@ type OKFFrontmatter struct {
 type OKFConcept struct {
 	Ref           ConceptRef
 	Frontmatter   OKFFrontmatter
-	Body          string        // raw markdown body (after frontmatter block)
+	Body          string // raw markdown body (after frontmatter block)
 	OutboundLinks []ConceptLink
 }
 
