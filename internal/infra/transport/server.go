@@ -93,13 +93,29 @@ func ServeHTTP(ctx context.Context, srv *mcpserver.MCPServer, addr string) error
 // FR-021 structured logging middleware
 // ---------------------------------------------------------------------------
 
+// contextKey is an unexported type for context keys in this package,
+// preventing collisions with keys from other packages.
+type contextKey string
+
+const requestIDKey contextKey = "request_id"
+
+// RequestIDFromContext returns the request_id stored by loggingMiddleware,
+// or "" if the context carries no request_id (FR-021).
+func RequestIDFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(requestIDKey).(string)
+	return v
+}
+
 // loggingMiddleware returns a ToolHandlerMiddleware that emits a JSON log line
 // for every MCP tool invocation with the fields required by FR-021:
 // request_id, tool, duration_ms, level, and (on error) error.
+// The request_id is also propagated via context so downstream handlers can
+// correlate their own log lines to the originating MCP call.
 func loggingMiddleware() mcpserver.ToolHandlerMiddleware {
 	return func(next mcpserver.ToolHandlerFunc) mcpserver.ToolHandlerFunc {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			requestID := uuid.New().String()
+			ctx = context.WithValue(ctx, requestIDKey, requestID)
 			tool := req.Params.Name
 			start := time.Now()
 

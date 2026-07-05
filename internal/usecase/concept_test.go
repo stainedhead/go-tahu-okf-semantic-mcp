@@ -6,7 +6,9 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
@@ -325,6 +327,72 @@ func TestConceptService_WriteConcept_RejectsReservedPath_FR011(t *testing.T) {
 				t.Errorf("expected ErrReservedPath for %q; got %v", tc.path, err)
 			}
 		})
+	}
+}
+
+// TestConceptService_WriteConcept_IndexContainsTypeAndTitle_FIX003 asserts
+// that regenerateIndex populates the Type and Title columns from frontmatter.
+func TestConceptService_WriteConcept_IndexContainsTypeAndTitle_FIX003(t *testing.T) {
+	t.Parallel()
+	nr := newFakeNodeRepo()
+	br := newFakeBundleRepo()
+	svc := newConceptService(nr, br)
+
+	ref1 := domain.ConceptRef{BundleAlias: "kb", RelativePath: "notes/alpha.md"}
+	ref2 := domain.ConceptRef{BundleAlias: "kb", RelativePath: "notes/beta.md"}
+
+	if err := svc.WriteConcept(context.Background(), ref1, makeConcept("runbook", "Alpha Title", "body1", nil)); err != nil {
+		t.Fatalf("WriteConcept ref1: %v", err)
+	}
+	if err := svc.WriteConcept(context.Background(), ref2, makeConcept("reference", "Beta Title", "body2", nil)); err != nil {
+		t.Fatalf("WriteConcept ref2: %v", err)
+	}
+
+	idx, err := svc.ReadIndex(context.Background(), "kb", "notes")
+	if err != nil {
+		t.Fatalf("ReadIndex: %v", err)
+	}
+	for _, want := range []string{"runbook", "reference", "Alpha Title", "Beta Title"} {
+		if !strings.Contains(idx, want) {
+			t.Errorf("index.md missing %q; got:\n%s", want, idx)
+		}
+	}
+}
+
+// TestConceptService_ConcurrentWrite_LogPreservesAllEntries_FIX004 asserts
+// that concurrent WriteConcept calls in the same directory produce exactly N
+// log entries with no race (spec: concurrent writes must not cause data loss).
+func TestConceptService_ConcurrentWrite_LogPreservesAllEntries_FIX004(t *testing.T) {
+	nr := newFakeNodeRepo()
+	br := newFakeBundleRepo()
+	svc := newConceptService(nr, br)
+
+	const N = 20
+	var wg sync.WaitGroup
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			ref := domain.ConceptRef{
+				BundleAlias:  "kb",
+				RelativePath: fmt.Sprintf("notes/concept-%02d.md", i),
+			}
+			if err := svc.WriteConcept(context.Background(), ref,
+				makeConcept("note", fmt.Sprintf("Title %d", i), "body", nil)); err != nil {
+				t.Errorf("WriteConcept %d: %v", i, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	logContent, err := svc.ReadLog(context.Background(), "kb", "notes")
+	if err != nil {
+		t.Fatalf("ReadLog: %v", err)
+	}
+	count := strings.Count(logContent, "concept_write")
+	if count != N {
+		t.Errorf("expected %d log entries, got %d\nlog:\n%s", N, count, logContent)
 	}
 }
 

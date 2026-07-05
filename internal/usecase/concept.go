@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
@@ -17,6 +18,16 @@ import (
 type ConceptService struct {
 	NodeRepository   domain.NodeRepository
 	BundleRepository domain.BundleRepository
+	bundleMu         sync.Map // maps bundle alias (string) -> *sync.Mutex
+}
+
+// bundleLock returns the per-bundle advisory mutex, creating it on first use.
+// Serializes the full WriteConcept flow (Put + regenerateIndex + appendLog)
+// per bundle so concurrent writes cannot interleave their read-modify-write
+// on log.md (FIX-004).
+func (s *ConceptService) bundleLock(alias string) *sync.Mutex {
+	v, _ := s.bundleMu.LoadOrStore(alias, &sync.Mutex{})
+	return v.(*sync.Mutex) //nolint:forcetypeassert
 }
 
 // ReadConcept returns the parsed OKF concept for ref (FR-005).
@@ -114,6 +125,13 @@ func (s *ConceptService) WriteConcept(ctx context.Context, ref domain.ConceptRef
 		return fmt.Errorf("concept_write %s: %w", ref, domain.ErrReservedPath)
 	}
 
+	// Serialize the full write sequence per bundle to prevent the
+	// ReadReserved→WriteReserved in appendLog from racing with concurrent
+	// WriteConcept calls (FIX-004).
+	mu := s.bundleLock(ref.BundleAlias)
+	mu.Lock()
+	defer mu.Unlock()
+
 	// Persist the concept.
 	if err := s.NodeRepository.Put(ctx, ref, concept); err != nil {
 		return fmt.Errorf("concept_write %s: %w", ref, err)
@@ -137,7 +155,9 @@ func (s *ConceptService) WriteConcept(ctx context.Context, ref domain.ConceptRef
 // ---------------------------------------------------------------------------
 
 // regenerateIndex lists all concepts in ref's directory and writes a fresh
-// index.md. A List result of ErrNotFound is treated as an empty directory.
+// index.md with File, Type, and Title columns populated from frontmatter.
+// A List result of ErrNotFound is treated as an empty directory. Get failures
+// for individual refs are tolerated — they produce empty type/title cells.
 func (s *ConceptService) regenerateIndex(ctx context.Context, ref domain.ConceptRef) error {
 	dir := conceptDir(ref.RelativePath)
 	refs, err := s.NodeRepository.List(ctx, ref.BundleAlias, dir)
@@ -148,9 +168,15 @@ func (s *ConceptService) regenerateIndex(ctx context.Context, ref domain.Concept
 	var sb strings.Builder
 	sb.WriteString("# Index\n\n")
 	if len(refs) > 0 {
-		sb.WriteString("| Path | Type |\n|------|------|\n")
+		sb.WriteString("| File | Type | Title |\n|---|---|---|\n")
 		for _, r := range refs {
-			fmt.Fprintf(&sb, "| %s | |\n", path.Base(r.RelativePath))
+			name := path.Base(r.RelativePath)
+			typ, title := "", ""
+			if c, err := s.NodeRepository.Get(ctx, r); err == nil {
+				typ = c.Frontmatter.Type
+				title = c.Frontmatter.Title
+			}
+			fmt.Fprintf(&sb, "| [%s](%s) | %s | %s |\n", name, name, typ, title)
 		}
 	}
 

@@ -3,6 +3,8 @@ package mcpadapter_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -266,6 +268,36 @@ func TestHandleBundleAdd_RejectsMissingAlias(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "alias") {
 		t.Errorf("error message should mention \"alias\"; got: %v", err)
+	}
+}
+
+// TestHandleBundleAdd_RejectsColonInAlias_FIX006 verifies that bundle_add
+// rejects an alias containing ':' with a specific error before path validation.
+// A colon in the alias breaks parseConceptRef for all concepts in that bundle,
+// making them silently inaccessible via MCP tools.
+func TestHandleBundleAdd_RejectsColonInAlias_FIX006(t *testing.T) {
+	t.Parallel()
+	svc := newTestServices()
+	ctx := context.Background()
+
+	// Use a real temp directory with an .md file so path validation passes.
+	// This isolates the alias colon check from the path-not-found check.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "note.md"), []byte("# hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := callTool(ctx, map[string]any{
+		"alias": "bad:alias",
+		"path":  dir,
+	}, svc.HandleBundleAdd)
+
+	if err == nil {
+		t.Fatal("expected error for alias containing ':', got nil")
+	}
+	// The error must specifically mention the colon constraint, not a path error.
+	if !strings.Contains(err.Error(), ":") || strings.Contains(err.Error(), "stat") {
+		t.Errorf("expected alias-colon error; got: %v", err)
 	}
 }
 

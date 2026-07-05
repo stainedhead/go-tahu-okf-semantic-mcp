@@ -50,6 +50,9 @@ func (s *Services) HandleBundleAdd(ctx context.Context, req mcp.CallToolRequest)
 	if err := ValidateInputSize(alias, MaxStringBytes); err != nil {
 		return nil, fmt.Errorf("bundle_add: alias: %w", err)
 	}
+	if strings.Contains(alias, ":") {
+		return nil, fmt.Errorf("bundle_add: alias must not contain ':'; got %q", alias)
+	}
 
 	rootPath, err := req.RequireString("path")
 	if err != nil {
