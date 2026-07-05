@@ -13,6 +13,15 @@ linters:
     - noctx
     - bodyclose
     - contextcheck
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: context-as-argument
+        - name: context-keys-type
 
 formatters:
   enable:
@@ -23,17 +32,3 @@ formatters:
       local-prefixes:
         - github.com/stainedhead/go-tahu-okf-semantic-mcp
 
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: context-as-argument
-      - name: context-keys-type
-
-issues:
-  exclude-dirs:
-    - vendor
-    - testdata
