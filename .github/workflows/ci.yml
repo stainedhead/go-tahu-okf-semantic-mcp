@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format check (gofmt)
+        run: |
+          bad=$(gofmt -l .)
+          if [ -n "$bad" ]; then
+            printf 'Unformatted files:\n%s\nRun: gofmt -w .\n' "$bad"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Test (race detector)
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Coverage gate — domain (≥90%)
+        run: |
+          go test -coverprofile=domain.out ./internal/domain/...
+          pct=$(go tool cover -func=domain.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 90) { print "FAIL: domain coverage " p "% is below 90%"; exit 1 }
+            print "PASS: domain coverage " p "%"
+          }'
+
+      - name: Coverage gate — usecase (≥90%)
+        run: |
+          go test -coverprofile=usecase.out ./internal/usecase/...
+          pct=$(go tool cover -func=usecase.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 90) { print "FAIL: usecase coverage " p "% is below 90%"; exit 1 }
+            print "PASS: usecase coverage " p "%"
+          }'

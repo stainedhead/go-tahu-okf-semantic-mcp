@@ -306,3 +306,55 @@ Documents are created progressively as the feature develops:
 - **Reference from commits** — link to the spec directory in commit messages
 - **Archive completed specs** — move to `specs/archive/` when 100% complete in status.md
 - **Version control** — commit specs alongside code for team visibility
+
+---
+
+## PR and CI/CD Workflow
+
+### Conventional Commits (required)
+
+All commits must follow `<type>(<scope>): <description>`. The CD pipeline uses this to determine the semver bump on every merge to `main`:
+
+| Type | Semver bump |
+|---|---|
+| `feat:` | minor |
+| `fix:` | patch |
+| `feat!:` / `fix!:` / body contains `BREAKING CHANGE` | major |
+| `chore:`, `docs:`, `refactor:`, `test:`, `style:`, `perf:`, `ci:` | patch |
+
+### PR Rules (agents must follow)
+
+1. **Always use `--auto-merge`** when creating PRs:
+   ```bash
+   gh pr create --auto-merge --title "..." --body "..."
+   ```
+2. **Monitor CI after opening the PR.** Read failures and push fixes until auto-merge completes:
+   ```bash
+   # Check CI status
+   gh pr checks <number>
+   # Read failure logs
+   gh run view --log-failed
+   # Fix, commit, push — repeat until green
+   ```
+3. **Never force-push** to a branch with an open PR — it can invalidate the auto-merge queue.
+4. **Do not merge manually** — auto-merge handles it once CI passes.
+
+### CI Gate (all required before merge)
+
+Enforced by branch protection on `main`. All must pass:
+- `go build ./...`
+- `gofmt -l .` (zero unformatted files)
+- `go vet ./...`
+- golangci-lint (`.golangci.yml` config)
+- `go test -race ./...`
+- domain coverage ≥ 90%
+- usecase coverage ≥ 90%
+
+### CD Pipeline (runs on every merge to `main`)
+
+1. Determines semver bump from conventional commit types since last tag
+2. Builds `tahu` for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
+3. Creates a GitHub release with all binaries and a `checksums.txt`
+4. Tags the commit (e.g., `v1.2.3`)
+
+The binary embeds the version via ldflags: `-X main.version=<tag>`.

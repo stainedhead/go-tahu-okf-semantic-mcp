@@ -39,10 +39,14 @@ func main() {
 // Root command
 // ---------------------------------------------------------------------------
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z".
+var version = "dev"
+
 func buildRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "tahu",
-		Short: "OKF knowledge-management daemon with MCP tools",
+		Use:     "tahu",
+		Version: version,
+		Short:   "OKF knowledge-management daemon with MCP tools",
 		Long: `tahu manages OKF (Open Knowledge Format) bundle registries and
 exposes 14 MCP tools for reading, writing, and semantically searching
 knowledge bases over stdio or HTTP/SSE.`,

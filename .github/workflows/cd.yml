@@ -1,0 +1,112 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Determine semver bump
+        id: semver
+        run: |
+          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "current=$CURRENT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT" = "v0.0.0" ]; then
+            COMMITS=$(git log --format="%s%n%b")
+          else
+            COMMITS=$(git log "${CURRENT}..HEAD" --format="%s%n%b")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "No commits since $CURRENT — skipping release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          # Determine bump: breaking > feat > patch
+          if echo "$COMMITS" | grep -qE '(^BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:)'; then
+            BUMP=major
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP=minor
+          else
+            BUMP=patch
+          fi
+          echo "bump=$BUMP"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+          IFS='.' read -r -a parts <<< "${CURRENT#v}"
+          MAJOR="${parts[0]:-0}"
+          MINOR="${parts[1]:-0}"
+          PATCH="${parts[2]:-0}"
+          case $BUMP in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          NEW="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$NEW"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries (linux + macOS)
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.semver.outputs.version }}"
+          LDFLAGS="-s -w -X main.version=${VERSION}"
+          mkdir -p dist
+
+          build() {
+            local os=$1 arch=$2
+            local out="dist/tahu-${os}-${arch}"
+            echo "Building $out..."
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="$LDFLAGS" -o "$out" ./cmd/tahu
+          }
+
+          build linux  amd64
+          build linux  arm64
+          build darwin amd64
+          build darwin arm64
+
+          cd dist
+          sha256sum tahu-* > checksums.txt
+          echo "--- Built artifacts ---"
+          ls -lh tahu-* checksums.txt
+
+      - name: Create and push tag
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.semver.outputs.version }}"
+          git push origin "${{ steps.semver.outputs.version }}"
+
+      - name: Create GitHub release
+        if: steps.semver.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semver.outputs.version }}
+          name: ${{ steps.semver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/tahu-linux-amd64
+            dist/tahu-linux-arm64
+            dist/tahu-darwin-amd64
+            dist/tahu-darwin-arm64
+            dist/checksums.txt
