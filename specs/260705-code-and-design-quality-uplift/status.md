@@ -10,7 +10,7 @@
 
 | Phase | Name | Status | Notes |
 |---|---|---|---|
-| 0 | Initial Research & Spec Creation | 🔄 In Progress | Spec directory initialized |
+| 0 | Initial Research & Spec Creation | ✅ Complete | Spec reviewed; all warnings resolved |
 | 1 | Correctness fixes (NaN, stale reindex, dims, mutex) | Not Started | |
 | 2 | Boundary-guard consolidation (path resolver) | Not Started | |
 | 3 | Operational hardening (HTTP, stdio, CI) | Not Started | |
@@ -26,8 +26,8 @@
 - [x] All phase files initialized
 - [x] PRD moved into spec directory
 - [x] Research questions identified
-- [ ] spec.md reviewed and approved
-- [ ] tasks.md task breakdown complete
+- [x] spec.md reviewed and approved (4 warnings resolved inline)
+- [x] tasks.md task breakdown complete (35 tasks across 5 phases)
 
 ---
 
@@ -39,4 +39,5 @@ _None currently._
 
 ## Recent Activity
 
+- 2026-07-05: Spec reviewed. 4 warnings resolved: read cap set to 1 MB; EvalSymlinks/Lstat strategy for new vs existing paths specified; all-OOV empty-search AC added; flock decided as syscall.Flock with Windows no-op stub. Phase 0 complete.
 - 2026-07-05: Spec directory created from PRD. All open questions resolved (EmbeddingModel→error, HTTP auth→block non-loopback, indexer.go→Phase 5 deletion, registry→flock).

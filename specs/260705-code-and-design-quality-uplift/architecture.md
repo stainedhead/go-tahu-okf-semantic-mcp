@@ -134,7 +134,7 @@ _[TBD — add sequence diagrams for ReindexBundle scope-delete and flock registr
 
 ## Integration Points
 
-- `golang.org/x/sys/unix` (optional new dep for flock — evaluate if `syscall.Flock` suffices without the extra module)
+- **flock:** Use `syscall.Flock` (stdlib, Unix-only). No new external dependency. Windows is deferred (NG8); gate the flock call behind a build tag (`//go:build !windows`) with a no-op stub for the Windows path.
 - `coder/hnsw` — no API changes; NaN guard is in our layer
 - `golangci-lint` — gosec linter added; all new code must be gosec-clean
 - GitHub Actions — SHA-pinned; new integration test job added

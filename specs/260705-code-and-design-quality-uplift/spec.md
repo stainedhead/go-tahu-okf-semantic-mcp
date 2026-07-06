@@ -57,7 +57,7 @@ The unifying narrative: invariants are guarded at one layer instead of the bound
 
 **FR-005:** `ValidatePath` and `ValidateConceptPath` must be consolidated into one canonical routine.
 
-**FR-006:** `ValidateConceptPath` must canonicalize the resolved target via `EvalSymlinks` or `Lstat`-and-reject before the prefix check.
+**FR-006:** `BundlePathResolver` must guard against symlink escapes. For **existing** paths use `filepath.EvalSymlinks` on the final resolved path and re-apply the prefix check. For **non-existent** paths (new concept writes), use `os.Lstat` on the final path component: if it returns no error and the entry is a symlink, reject with `ErrPathEscape`; if it returns `os.ErrNotExist`, the path is new and safe to create. Never call `EvalSymlinks` on a path that may not yet exist.
 
 **FR-007:** `ConceptService.WriteConcept` must validate `ref.RelativePath` at the use-case layer as defense-in-depth.
 
@@ -99,7 +99,7 @@ The unifying narrative: invariants are guarded at one layer instead of the bound
 
 **FR-023:** Tool-handler middleware must include a deferred `recover()`.
 
-**FR-024:** All `os.ReadFile` calls on the read path must be capped (stat-and-reject or `io.LimitReader`).
+**FR-024:** All `os.ReadFile` calls on the read path must be capped at **1 MB** (matching `MaxBodyBytes` on the write path). Implement via `stat`-and-reject: if `os.Stat` reports `Size > 1 MB`, return a wrapped `domain.ErrInputTooLarge` before reading. HTTP transport additionally wraps with `http.MaxBytesReader` at 2 MB (1 MB content + overhead).
 
 **FR-025:** `gosec` must be added to `.golangci.yml`; all violations resolved.
 
@@ -281,6 +281,7 @@ The unifying narrative: invariants are guarded at one layer instead of the bound
 ### Test coverage
 - [ ] `TestYAMLBundleRepository_RoundTrip` passes
 - [ ] `TestHNSWStore_Delete_RemovesChunk` passes
+- [ ] `TestHNSWStore_AllOOV_Search_ReturnsEmpty` passes — a bundle where every document produces a zero-norm embedding returns an empty (non-error) search result
 - [ ] At least one `//go:build integration` test exists and runs in CI
 - [ ] Coverage floors met per NFRs
 

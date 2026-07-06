@@ -16,7 +16,7 @@
 
 4. **`io.LimitReader` vs stat-and-reject (FR-024):** For the file read cap, is it better to stat the file and return an error before reading (user sees a meaningful error), or use `io.LimitReader` and silently truncate? Should the cap be configurable or hardcoded? What is the right cap given OKF documents are spec'd at ≤ 1 MB in the MCP write path?
 
-5. **`filepath.EvalSymlinks` on non-existent paths (FR-006):** `EvalSymlinks` requires the target to exist. For the symlink guard on `ReadReserved`/`WriteReserved`, can we use `Lstat` to detect symlinks on the final path component without requiring existence? What is the correct sequence for new-file paths that don't exist yet?
+5. **`filepath.EvalSymlinks` on non-existent paths (FR-006):** ✅ Resolved. Use `EvalSymlinks` for existing paths; use `os.Lstat` on the final path component for new paths — if `Lstat` returns no error and the entry is a symlink, reject. If `Lstat` returns `os.ErrNotExist`, path is new and safe. Never call `EvalSymlinks` on a path that may not exist.
 
 ---
 
