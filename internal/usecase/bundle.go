@@ -19,6 +19,7 @@ import (
 type BundleService struct {
 	BundleRepository domain.BundleRepository
 	NodeRepository   domain.NodeRepository
+	Now              func() time.Time // injected clock; defaults to time.Now
 }
 
 // AddBundle registers a new OKF bundle at rootPath with the given alias (FR-001).
@@ -83,12 +84,13 @@ func (s *BundleService) AddBundle(
 	}
 
 	// 5. Persist.
+	now := s.now()
 	entry := domain.BundleEntry{
 		Alias:       alias,
 		RootPath:    rootPath,
 		Description: description,
 		Tags:        tags,
-		CreatedAt:   time.Now(),
+		CreatedAt:   now,
 	}
 	if putErr := s.BundleRepository.Put(ctx, entry); putErr != nil {
 		return nil, fmt.Errorf("AddBundle %q: persist: %w", alias, putErr)
@@ -191,10 +193,18 @@ func (s *BundleService) ReindexBundle(
 	}
 
 	// 6. Stamp LastIndexedAt, record new chunk IDs, and persist.
-	entry.LastIndexedAt = time.Now()
+	entry.LastIndexedAt = s.now()
 	entry.ChunkIDs = newChunkIDs
 	if putErr := s.BundleRepository.Put(ctx, *entry); putErr != nil {
 		return fmt.Errorf("ReindexBundle %q: update bundle entry: %w", alias, putErr)
 	}
 	return nil
+}
+
+// now returns the current time using the injected clock or time.Now.
+func (s *BundleService) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }

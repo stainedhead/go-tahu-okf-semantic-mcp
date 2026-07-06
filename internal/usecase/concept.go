@@ -18,7 +18,8 @@ import (
 type ConceptService struct {
 	NodeRepository   domain.NodeRepository
 	BundleRepository domain.BundleRepository
-	bundleMu         sync.Map // maps bundle alias (string) -> *sync.Mutex
+	Now              func() time.Time // injected clock; defaults to time.Now
+	bundleMu         sync.Map         // maps bundle alias (string) -> *sync.Mutex
 }
 
 // bundleLock returns the per-bundle advisory mutex, creating it on first use.
@@ -207,7 +208,7 @@ func (s *ConceptService) appendLog(ctx context.Context, ref domain.ConceptRef) e
 	}
 
 	entry := fmt.Sprintf("- %s: concept_write `%s`\n",
-		time.Now().UTC().Format(time.RFC3339), ref)
+		s.now().UTC().Format(time.RFC3339), ref)
 
 	return s.NodeRepository.WriteReserved(ctx, ref.BundleAlias, logRelPath, existing+entry)
 }
@@ -220,6 +221,14 @@ func conceptDir(relPath string) string {
 		return ""
 	}
 	return d
+}
+
+// now returns the current time using the injected clock or time.Now.
+func (s *ConceptService) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }
 
 // reservedPath computes the relative path for a reserved file (index.md or

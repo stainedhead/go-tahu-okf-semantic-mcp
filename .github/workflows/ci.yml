@@ -58,6 +58,42 @@ jobs:
             print "PASS: usecase coverage " p "%"
           }'
 
+      - name: Coverage gate — infra/config (≥80%)
+        run: |
+          go test -coverprofile=config.out ./internal/infra/config/...
+          pct=$(go tool cover -func=config.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 80) { print "FAIL: infra/config coverage " p "% is below 80%"; exit 1 }
+            print "PASS: infra/config coverage " p "%"
+          }'
+
+      - name: Coverage gate — infra/registry (≥80%)
+        run: |
+          go test -coverprofile=registry.out ./internal/infra/registry/...
+          pct=$(go tool cover -func=registry.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 80) { print "FAIL: infra/registry coverage " p "% is below 80%"; exit 1 }
+            print "PASS: infra/registry coverage " p "%"
+          }'
+
+      - name: Coverage gate — infra/transport (≥60%)
+        run: |
+          go test -coverprofile=transport.out ./internal/infra/transport/...
+          pct=$(go tool cover -func=transport.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 60) { print "FAIL: infra/transport coverage " p "% is below 60%"; exit 1 }
+            print "PASS: infra/transport coverage " p "%"
+          }'
+
+      - name: Coverage gate — adapter/okf (≥70%)
+        run: |
+          go test -coverprofile=okf.out ./internal/adapter/okf/...
+          pct=$(go tool cover -func=okf.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 70) { print "FAIL: adapter/okf coverage " p "% is below 70%"; exit 1 }
+            print "PASS: adapter/okf coverage " p "%"
+          }'
+
   integration:
     runs-on: ubuntu-latest
     steps:
