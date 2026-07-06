@@ -18,7 +18,8 @@ import (
 type ConceptService struct {
 	NodeRepository   domain.NodeRepository
 	BundleRepository domain.BundleRepository
-	bundleMu         sync.Map // maps bundle alias (string) -> *sync.Mutex
+	Now              func() time.Time // injected clock; defaults to time.Now
+	bundleMu         sync.Map         // maps bundle alias (string) -> *sync.Mutex
 }
 
 // bundleLock returns the per-bundle advisory mutex, creating it on first use.
@@ -125,6 +126,18 @@ func (s *ConceptService) WriteConcept(ctx context.Context, ref domain.ConceptRef
 		return fmt.Errorf("concept_write %s: %w", ref, domain.ErrReservedPath)
 	}
 
+	// Defense-in-depth: validate the ref at the use-case layer before handing off
+	// to the repository. The repository enforces full containment, but an explicit
+	// check here makes the boundary visible in code review.
+	if ref.RelativePath == "" {
+		return fmt.Errorf("WriteConcept: %w: empty relative path", domain.ErrPathEscape)
+	}
+	for _, part := range strings.Split(ref.RelativePath, "/") {
+		if part == ".." {
+			return fmt.Errorf("WriteConcept: %w: traversal in path", domain.ErrPathEscape)
+		}
+	}
+
 	// Serialize the full write sequence per bundle to prevent the
 	// ReadReserved→WriteReserved in appendLog from racing with concurrent
 	// WriteConcept calls (FIX-004).
@@ -195,7 +208,7 @@ func (s *ConceptService) appendLog(ctx context.Context, ref domain.ConceptRef) e
 	}
 
 	entry := fmt.Sprintf("- %s: concept_write `%s`\n",
-		time.Now().UTC().Format(time.RFC3339), ref)
+		s.now().UTC().Format(time.RFC3339), ref)
 
 	return s.NodeRepository.WriteReserved(ctx, ref.BundleAlias, logRelPath, existing+entry)
 }
@@ -208,6 +221,14 @@ func conceptDir(relPath string) string {
 		return ""
 	}
 	return d
+}
+
+// now returns the current time using the injected clock or time.Now.
+func (s *ConceptService) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }
 
 // reservedPath computes the relative path for a reserved file (index.md or

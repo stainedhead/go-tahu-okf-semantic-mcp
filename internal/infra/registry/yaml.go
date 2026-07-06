@@ -28,6 +28,7 @@ type yamlEntry struct {
 	Tags          []string  `yaml:"tags,omitempty"`
 	CreatedAt     time.Time `yaml:"created_at"`
 	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty"`
+	ChunkIDs      []string  `yaml:"chunk_ids,omitempty"`
 }
 
 // yamlFile is the top-level document written to disk.
@@ -39,14 +40,18 @@ type yamlFile struct {
 // file. Each mutating operation loads then saves the file atomically. This
 // approach is simple and correct for registries of up to a few hundred bundles.
 type YAMLBundleRepository struct {
-	mu   sync.RWMutex
-	path string
+	mu       sync.RWMutex
+	path     string
+	lockPath string
 }
 
 // NewYAMLBundleRepository creates a YAMLBundleRepository that persists to
 // path. The file and its parent directories are created on first write.
 func NewYAMLBundleRepository(path string) *YAMLBundleRepository {
-	return &YAMLBundleRepository{path: path}
+	return &YAMLBundleRepository{
+		path:     path,
+		lockPath: path + ".lock",
+	}
 }
 
 // Get retrieves a bundle by alias. Returns a wrapped domain.ErrNotFound when
@@ -70,6 +75,15 @@ func (r *YAMLBundleRepository) Get(_ context.Context, alias string) (*domain.Bun
 
 // Put creates or replaces the entry for entry.Alias.
 func (r *YAMLBundleRepository) Put(_ context.Context, entry domain.BundleEntry) error {
+	fl, err := newFileLock(r.lockPath)
+	if err != nil {
+		return err
+	}
+	defer fl.close() //nolint:errcheck
+	if err := fl.lock(); err != nil {
+		return fmt.Errorf("registry.Put: acquire lock: %w", err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -90,6 +104,15 @@ func (r *YAMLBundleRepository) Put(_ context.Context, entry domain.BundleEntry) 
 
 // Delete removes the entry for alias. No-op if alias is not registered.
 func (r *YAMLBundleRepository) Delete(_ context.Context, alias string) error {
+	fl, err := newFileLock(r.lockPath)
+	if err != nil {
+		return err
+	}
+	defer fl.close() //nolint:errcheck
+	if err := fl.lock(); err != nil {
+		return fmt.Errorf("registry.Delete: acquire lock: %w", err)
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -151,7 +174,7 @@ func (r *YAMLBundleRepository) save(f *yamlFile) error {
 		return fmt.Errorf("registry.save: marshal: %w", err)
 	}
 	dir := filepath.Dir(r.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // dir is from config-supplied registry path
 		return fmt.Errorf("registry.save: mkdir %s: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".tahu-registry-*.tmp")
@@ -187,6 +210,7 @@ func toYAML(e domain.BundleEntry) yamlEntry {
 		Tags:          e.Tags,
 		CreatedAt:     e.CreatedAt,
 		LastIndexedAt: e.LastIndexedAt,
+		ChunkIDs:      e.ChunkIDs,
 	}
 }
 
@@ -198,5 +222,6 @@ func fromYAML(y yamlEntry) domain.BundleEntry {
 		Tags:          y.Tags,
 		CreatedAt:     y.CreatedAt,
 		LastIndexedAt: y.LastIndexedAt,
+		ChunkIDs:      y.ChunkIDs,
 	}
 }

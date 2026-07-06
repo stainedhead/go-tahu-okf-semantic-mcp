@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -98,6 +99,9 @@ func (s *HNSWStore) Upsert(_ context.Context, chunks []domain.EmbeddingChunk) er
 				c.ID, len(c.Embedding), s.dims,
 			)
 		}
+		if isZeroNorm(c.Embedding) {
+			continue // silently skip; BM25 OOV produces zero vectors
+		}
 		s.graph.Add(hnsw.MakeNode(c.ID, c.Embedding))
 		s.chunks[c.ID] = c
 	}
@@ -143,6 +147,9 @@ func (s *HNSWStore) Search(_ context.Context, query []float32, scope domain.Scop
 			continue
 		}
 		score := float32(1) - hnsw.CosineDistance(query, n.Value)
+		if math.IsNaN(float64(score)) {
+			continue
+		}
 		candidates = append(candidates, candidate{chunk: c, score: score})
 	}
 
@@ -171,14 +178,39 @@ func (s *HNSWStore) Search(_ context.Context, query []float32, scope domain.Scop
 
 // Delete removes chunks by ID from both the HNSW graph and the metadata map.
 // IDs not present in the store are silently ignored.
+//
+// Implementation note: the coder/hnsw library's graph.Delete leaves dangling
+// neighbour pointers that panic on the next Search call. We therefore rebuild
+// the graph from the surviving chunks after removal — O(n) but correct.
 func (s *HNSWStore) Delete(_ context.Context, ids []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Remove deleted IDs from the metadata map.
+	toDelete := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
-		s.graph.Delete(id)
+		toDelete[id] = struct{}{}
+	}
+	for id := range toDelete {
 		delete(s.chunks, id)
 	}
+
+	// Rebuild the graph from surviving chunks so no dangling pointers remain.
+	g := hnsw.NewGraph[string]()
+	g.M = s.graph.M
+	g.EfSearch = s.graph.EfSearch
+	g.Distance = s.graph.Distance
+	for _, c := range s.chunks {
+		if isZeroNorm(c.Embedding) {
+			continue
+		}
+		g.Add(hnsw.MakeNode(c.ID, c.Embedding))
+	}
+	s.graph = g
 	return nil
 }
 
@@ -202,6 +234,8 @@ func (s *HNSWStore) Persist(_ context.Context) error {
 
 // Load restores the HNSW graph and chunk metadata from durable storage.
 // If the index file does not exist this is a no-op (cold start).
+// Load is idempotent: calling it on a store that already has in-memory state
+// resets that state entirely to what is on disk (no merging).
 func (s *HNSWStore) Load(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -214,12 +248,35 @@ func (s *HNSWStore) Load(_ context.Context) error {
 		return fmt.Errorf("vectorstore.Load: stat %q: %w", s.persistPath, err)
 	}
 
+	// Reset in-memory state before loading so Load does not merge with any
+	// previously-upserted (but not persisted) data.
+	g := hnsw.NewGraph[string]()
+	g.M = s.graph.M
+	g.EfSearch = s.graph.EfSearch
+	g.Distance = s.graph.Distance
+	s.graph = g
+	s.chunks = make(map[string]domain.EmbeddingChunk)
+
 	if err := s.readGraph(); err != nil {
 		return fmt.Errorf("vectorstore.Load: read graph: %w", err)
 	}
 	if err := s.readMeta(); err != nil {
 		return fmt.Errorf("vectorstore.Load: read meta: %w", err)
 	}
+
+	// Validate that the persisted embedding dimensionality matches this
+	// store's configured dims.  A mismatch indicates the index was built
+	// with a different model and must be rebuilt.
+	for _, c := range s.chunks {
+		if len(c.Embedding) != s.dims {
+			return fmt.Errorf(
+				"vectorstore.Load: persisted dims %d != configured dims %d — rebuild required",
+				len(c.Embedding), s.dims,
+			)
+		}
+		break // only need to check one; all chunks share the same model
+	}
+
 	return nil
 }
 
@@ -313,7 +370,7 @@ func (s *HNSWStore) readGraph() error {
 // a no-op.
 func (s *HNSWStore) readMeta() error {
 	metaPath := s.persistPath + metaSuffix
-	f, err := os.Open(metaPath)
+	f, err := os.Open(metaPath) //nolint:gosec // metaPath is constructed from config-supplied persistPath
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -328,6 +385,18 @@ func (s *HNSWStore) readMeta() error {
 	return nil
 }
 
+// isZeroNorm reports whether all elements of v are zero.  A zero-norm vector
+// produces NaN from cosine-distance computations (division by zero magnitude)
+// and must be excluded from the HNSW graph.
+func isZeroNorm(v []float32) bool {
+	for _, x := range v {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // chunkMatchesScope reports whether c falls within the given search scope.
 func chunkMatchesScope(c domain.EmbeddingChunk, scope domain.Scope) bool {
 	switch scope.Kind {
@@ -336,8 +405,11 @@ func chunkMatchesScope(c domain.EmbeddingChunk, scope domain.Scope) bool {
 	case domain.ScopeBundle:
 		return c.BundleAlias == scope.BundleAlias
 	case domain.ScopePath:
+		// Match the exact path or any path strictly under it (separated by "/").
+		// A bare HasPrefix("notes", "note") would incorrectly match "notebook/…".
 		return c.BundleAlias == scope.BundleAlias &&
-			strings.HasPrefix(c.ConceptPath, scope.SubPath)
+			(c.ConceptPath == scope.SubPath ||
+				strings.HasPrefix(c.ConceptPath, scope.SubPath+"/"))
 	default:
 		return false
 	}

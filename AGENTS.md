@@ -112,23 +112,29 @@ Core domain types (defined in `internal/domain/`):
 
 | Type | Description |
 |---|---|
-| `Node` | A typed knowledge entity with a UUID, kind, and facet map |
-| `Edge` | A directed, typed relationship between two nodes |
-| `Facet` | A typed attribute value on a node or edge |
-| `Graph` | A bounded collection of nodes and edges |
+| `OKFConcept` | A knowledge document parsed from an OKF Markdown file (frontmatter + body + links) |
+| `OKFFrontmatter` | YAML frontmatter of an OKF concept file (type, title, tags, links) |
+| `ConceptRef` | A typed reference to a concept: `alias:relative/path.md` |
+| `ConceptLink` | A directed link from one concept to another with a typed relationship |
+| `BundleEntry` | A registered OKF bundle: alias, filesystem root, concept count, index metadata |
+| `EmbeddingChunk` | A text chunk with its embedding vector, used in the vector index |
+| `ScoredChunk` | A retrieved chunk with its similarity score, returned by search |
+| `Scope` | Search boundary: `ScopeGlobal`, `ScopeBundle:<alias>`, or `ScopePath:<alias>:<subpath>` |
 
-Repository interfaces (`domain/repository.go`):
-- `NodeRepository` — CRUD + semantic search over nodes
-- `GraphRepository` — graph-scoped queries
+Repository interfaces (`internal/domain/interfaces.go`):
+- `NodeRepository` — read/write OKF concept files from a bundle filesystem
+- `BundleRepository` — CRUD over the YAML bundle registry
+- `Embedder` — encode texts to float32 vectors (implemented by `adapter/embedder/BM25Embedder`)
+- `VectorStore` — upsert, search, persist, and load embedding chunks
 
 ---
 
 ## Vector / Semantic Search
 
-- Embeddings are generated via the `domain.Embedder` interface (implemented in `adapter/embedder/`).
-- The vector store is behind the `domain.VectorStore` interface (implemented in `adapter/vectorstore/`).
-- Semantic search is a use case in `usecase/search.go` that composes `Embedder` + `VectorStore`.
-- Chunking strategy for large OKF graphs is defined per `Node.Kind` in `usecase/chunker.go`.
+- Embeddings are generated via the `domain.Embedder` interface (implemented in `adapter/embedder/BM25Embedder`).
+- The vector store is behind the `domain.VectorStore` interface (implemented in `adapter/vectorstore/HNSWStore`).
+- `SearchService` in `usecase/search.go` exposes `SemanticSearch`, `KeywordSearch`, and `RAGSearch`; it holds separate `Embedder` and `KeywordEmbedder` fields so each path can use a different backend.
+- All path-traversal and scope-boundary validation is centralised: `BundlePathResolver` for filesystem paths, `ParseScope` for search scopes.
 
 ---
 

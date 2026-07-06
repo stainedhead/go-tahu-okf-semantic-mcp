@@ -155,7 +155,7 @@ internal/domain/        entities, interfaces, domain errors (no external deps)
 internal/usecase/       application logic (depends only on domain)
 internal/adapter/
   mcp/                  14 MCP tool handlers
-  okf/                  OKF parser, linker, indexer, validator, FileNodeRepository
+  okf/                  OKF parser, linker, validator, BundlePathResolver, FileNodeRepository
   embedder/             BM25Embedder (pure-Go), chunker
   vectorstore/          HNSWStore (coder/hnsw, disk-backed)
   llm/                  reserved — no implementations in v0.1

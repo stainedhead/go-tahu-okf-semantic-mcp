@@ -121,3 +121,31 @@ The ONNX tier satisfies the quality requirement. The BM25 tier satisfies the zer
 **Consequences:** External Go programs cannot import OKF codec logic without vendoring the internal adapter, which is not a supported pattern. This is an acceptable constraint for v0.1 given zero known consumers. Implementing `pkg/okfcodec` in a future release will require defining a stable public API surface and is therefore a non-trivial design exercise best deferred until consumer requirements are known.
 
 **Alternatives considered:** Shipping a minimal `pkg/okfcodec` stub — rejected; an empty stub creates a false impression of a stable API. Moving all OKF logic to `pkg/` immediately — rejected; premature API stabilisation before consumers exist.
+
+---
+
+## ADR-008: BundlePathResolver as single path-resolution gateway
+**Date:** 2026-07-06
+**Status:** Accepted
+
+**Context:** Path-traversal and symlink-escape guards were scattered across six methods in `FileNodeRepository`, each duplicating prefix-check logic with slight variations. The `ValidateConceptPath` function in `validator.go` added a seventh variant. No single authoritative boundary existed.
+
+**Decision:** Introduce `internal/adapter/okf/BundlePathResolver` as the single gateway for all filesystem path resolution. All `FileNodeRepository` methods (`Get`, `Put`, `List`, `ReadReserved`, `WriteReserved`) route through it. `ValidateConceptPath` is kept as a defense-in-depth layer for the public MCP handler boundary but no longer the primary enforcement mechanism.
+
+**Consequences:** Path security invariants are testable in isolation (`pathresolver_test.go`). Adding a new file operation requires routing through the resolver, making the security model visible in code review. A regression in the resolver affects all operations uniformly rather than requiring per-method fixes.
+
+**Alternatives considered:** Adding a shared `containedPath` helper called by each method — rejected; callers still need to remember to call it. Using a middleware/decorator around the repository — rejected; the repository interface is the domain boundary; wrapping it in infra creates an import-direction violation.
+
+---
+
+## ADR-009: syscall.Flock advisory lock for the YAML registry
+**Date:** 2026-07-06
+**Status:** Accepted
+
+**Context:** Concurrent `tahu` processes (e.g., a CLI command running alongside the daemon) can race on the `registry.yaml` file during `Put`/`Delete`. The in-process `sync.Mutex` does not protect against cross-process writes.
+
+**Decision:** Use `syscall.Flock` (Unix-only) as an advisory exclusive file lock around registry mutations. A no-op stub (`flock_windows.go`) is provided for Windows builds. No external dependency is required.
+
+**Consequences:** Unix multi-process safety is achieved with zero new dependencies. Windows is not protected (NG-8 in the spec); a future ADR will address this if Windows support becomes a requirement.
+
+**Alternatives considered:** `flock` library (`github.com/gofrs/flock`) — rejected; avoids adding a dependency for functionality available in stdlib. `os.O_EXCL` lock file — rejected; requires cleanup logic on crash, more complex than advisory locking.

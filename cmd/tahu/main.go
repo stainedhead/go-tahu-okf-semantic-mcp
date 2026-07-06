@@ -80,7 +80,7 @@ func buildServe() *cobra.Command {
 		Long: `Start the tahu MCP server. Use --transport stdio (default) for CLI
 agents or --transport http for orchestration pipelines.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := config.LoadFromPath(configPath)
 			if err != nil {
 				return fmt.Errorf("serve: load config: %w", err)
 			}
@@ -94,7 +94,6 @@ agents or --transport http for orchestration pipelines.`,
 			if cmd.Flags().Changed("bind") {
 				cfg.BindAddr = bind
 			}
-			_ = configPath // config path is read by config.Load() from the default location
 
 			// Structured JSON logger (FR-021).
 			initLogger(cfg.LogLevel)
@@ -114,7 +113,7 @@ agents or --transport http for orchestration pipelines.`,
 				}
 			}()
 
-			srv := transport.NewMCPServer(svc)
+			srv := transport.NewMCPServer(svc, version)
 
 			switch cfg.Transport {
 			case "http":
@@ -360,7 +359,13 @@ func buildServices(cfg *config.Config) (mcpadapter.Services, domain.VectorStore,
 	}
 	nodeRepo := okf.NewFileNodeRepository(roots)
 
-	// 3. Embedder — BM25 is the default; ONNX can be added later.
+	// 3. Embedder — only "bm25" is supported; return a clear error for anything else (FR-015).
+	if cfg.EmbeddingModel != "bm25" {
+		return mcpadapter.Services{}, nil, fmt.Errorf(
+			"buildServices: embedding_model %q is not supported (only \"bm25\" is available)",
+			cfg.EmbeddingModel,
+		)
+	}
 	bm25Embedder := embedder.New() // maxDims=4096; Dims() always returns 4096
 
 	// 4. Vector store — derive path from registry location.

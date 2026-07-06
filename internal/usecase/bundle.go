@@ -19,6 +19,7 @@ import (
 type BundleService struct {
 	BundleRepository domain.BundleRepository
 	NodeRepository   domain.NodeRepository
+	Now              func() time.Time // injected clock; defaults to time.Now
 }
 
 // AddBundle registers a new OKF bundle at rootPath with the given alias (FR-001).
@@ -83,12 +84,13 @@ func (s *BundleService) AddBundle(
 	}
 
 	// 5. Persist.
+	now := s.now()
 	entry := domain.BundleEntry{
 		Alias:       alias,
 		RootPath:    rootPath,
 		Description: description,
 		Tags:        tags,
-		CreatedAt:   time.Now(),
+		CreatedAt:   now,
 	}
 	if putErr := s.BundleRepository.Put(ctx, entry); putErr != nil {
 		return nil, fmt.Errorf("AddBundle %q: persist: %w", alias, putErr)
@@ -150,13 +152,15 @@ func (s *BundleService) ReindexBundle(
 	// 3. Retrieve every concept to obtain body text for embedding.
 	chunks := make([]domain.EmbeddingChunk, 0, len(refs))
 	texts := make([]string, 0, len(refs))
+	newChunkIDs := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		concept, getErr := s.NodeRepository.Get(ctx, ref)
 		if getErr != nil {
 			return fmt.Errorf("ReindexBundle %q: get concept %s: %w", alias, ref, getErr)
 		}
+		chunkID := fmt.Sprintf("%s:%s:0", alias, ref.RelativePath)
 		chunks = append(chunks, domain.EmbeddingChunk{
-			ID:                 fmt.Sprintf("%s:%s:0", alias, ref.RelativePath),
+			ID:                 chunkID,
 			BundleAlias:        alias,
 			ConceptPath:        ref.RelativePath,
 			ChunkIndex:         0,
@@ -164,9 +168,12 @@ func (s *BundleService) ReindexBundle(
 			FrontmatterSummary: concept.Frontmatter.Type + ":" + concept.Frontmatter.Title,
 		})
 		texts = append(texts, concept.Body)
+		newChunkIDs = append(newChunkIDs, chunkID)
 	}
 
-	// 4. Embed and upsert — skip the network round-trip if there is nothing to index.
+	// 4. Embed and upsert new chunks first, so the existing index is preserved
+	// if the embedder fails. Chunk IDs are deterministic, so re-upserting an
+	// unchanged concept is idempotent.
 	if len(texts) > 0 {
 		embeddings, embedErr := embedder.Embed(ctx, texts)
 		if embedErr != nil {
@@ -180,10 +187,35 @@ func (s *BundleService) ReindexBundle(
 		}
 	}
 
-	// 5. Stamp LastIndexedAt and persist.
-	entry.LastIndexedAt = time.Now()
+	// 5. Delete only stale chunks — IDs present in the old index but not in
+	// the new set. This runs even when refs is empty (removes all old chunks).
+	newIDSet := make(map[string]struct{}, len(newChunkIDs))
+	for _, id := range newChunkIDs {
+		newIDSet[id] = struct{}{}
+	}
+	var staleIDs []string
+	for _, id := range entry.ChunkIDs {
+		if _, ok := newIDSet[id]; !ok {
+			staleIDs = append(staleIDs, id)
+		}
+	}
+	if deleteErr := store.Delete(ctx, staleIDs); deleteErr != nil {
+		return fmt.Errorf("ReindexBundle %q: delete stale chunks: %w", alias, deleteErr)
+	}
+
+	// 6. Stamp LastIndexedAt, record new chunk IDs, and persist.
+	entry.LastIndexedAt = s.now()
+	entry.ChunkIDs = newChunkIDs
 	if putErr := s.BundleRepository.Put(ctx, *entry); putErr != nil {
 		return fmt.Errorf("ReindexBundle %q: update bundle entry: %w", alias, putErr)
 	}
 	return nil
+}
+
+// now returns the current time using the injected clock or time.Now.
+func (s *BundleService) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }

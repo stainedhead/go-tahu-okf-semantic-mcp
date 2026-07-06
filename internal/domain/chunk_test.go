@@ -29,6 +29,7 @@ func TestParseScope_FR_SpecSearch(t *testing.T) {
 		{"bundle:", domain.ScopeGlobal, true},            // empty alias
 		{"path:kb", domain.ScopeGlobal, true},            // missing subpath separator
 		{"path::notes/doc.md", domain.ScopeGlobal, true}, // empty alias
+		{"path:kb:", domain.ScopeGlobal, true},           // empty subpath
 	}
 
 	for _, tt := range tests {

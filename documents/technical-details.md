@@ -22,9 +22,10 @@ Dependency rule: inner layers never import outer layers.
 ┌───────────────────────────▼──────────────────────────────────────┐
 │  internal/adapter/                                                │
 │  mcp/         — 14 MCP tool handlers (thin: delegate to usecase) │
-│  okf/         — OKF parser, linker, indexer, validator           │
+│  okf/         — OKF parser, linker, validator                    │
+│               — BundlePathResolver (single path-resolution gateway)│
 │               — FileNodeRepository (NodeRepository impl)         │
-│  embedder/    — BM25Embedder (Embedder impl, pure-Go)            │
+│  embedder/    — BM25Embedder (Embedder impl, pure-Go, IDF-sorted)│
 │               — chunker (splits OKFConcept into EmbeddingChunks) │
 │  vectorstore/ — HNSWStore (VectorStore impl, coder/hnsw)         │
 │  llm/         — (reserved; no implementations in v0.1)           │
@@ -32,9 +33,10 @@ Dependency rule: inner layers never import outer layers.
                             │ imports
 ┌───────────────────────────▼──────────────────────────────────────┐
 │  internal/usecase/                                                │
-│  BundleService  — bundle registration and reindex orchestration  │
-│  ConceptService — concept read/write/list/link/type-list          │
-│  SearchService  — semantic, keyword, and RAG search              │
+│  BundleService  — bundle registration and reindex; clock-injected│
+│  ConceptService — concept CRUD/list/link/type-list; clock-injected│
+│  SearchService  — SemanticSearch, KeywordSearch, RAGSearch;      │
+│                   separate Embedder+KeywordEmbedder fields        │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ imports (interfaces only)
 ┌───────────────────────────▼──────────────────────────────────────┐

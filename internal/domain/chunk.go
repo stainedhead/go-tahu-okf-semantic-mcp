@@ -70,6 +70,9 @@ func ParseScope(s string) (Scope, error) {
 		if alias == "" {
 			return Scope{}, fmt.Errorf("path scope requires a non-empty alias")
 		}
+		if subPath == "" {
+			return Scope{}, fmt.Errorf("path scope requires a non-empty subpath")
+		}
 		return Scope{Kind: ScopePath, BundleAlias: alias, SubPath: subPath}, nil
 
 	default:

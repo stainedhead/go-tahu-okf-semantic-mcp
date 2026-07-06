@@ -24,8 +24,10 @@ func ParseScope(s string) (domain.Scope, error) {
 	return domain.ParseScope(s)
 }
 
-// ValidatePath checks relPath for path-traversal sequences before any
-// filepath.Clean call is applied. It rejects any component equal to "..".
+// ValidatePath is a fast pre-filter that rejects raw ".." components before
+// the request reaches the repository boundary. The repository's
+// BundlePathResolver enforces full containment and symlink checks.
+// This pre-filter is defense-in-depth at the adapter boundary.
 //
 // Rationale: filepath.Clean normalises traversal in both directions. Checking
 // before Clean means we refuse the raw input even if Clean would make it safe.

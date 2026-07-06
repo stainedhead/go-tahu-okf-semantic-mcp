@@ -13,6 +13,7 @@ linters:
     - noctx
     - bodyclose
     - contextcheck
+    - gosec
   settings:
     revive:
       rules:

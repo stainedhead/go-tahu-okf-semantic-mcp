@@ -10,6 +10,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/usecase"
@@ -396,6 +400,21 @@ func TestConceptService_ConcurrentWrite_LogPreservesAllEntries_FIX004(t *testing
 	}
 }
 
+// TestConceptService_WriteConcept_RejectsTraversal validates that WriteConcept
+// rejects a RelativePath containing ".." components as defense-in-depth at the
+// use-case boundary.
+func TestConceptService_WriteConcept_RejectsTraversal(t *testing.T) {
+	t.Parallel()
+	svc := newConceptService(newFakeNodeRepo(), newFakeBundleRepo())
+	ref := domain.ConceptRef{BundleAlias: "b", RelativePath: "../escape.md"}
+	err := svc.WriteConcept(context.Background(), ref, &domain.OKFConcept{
+		Frontmatter: domain.OKFFrontmatter{Type: "note"},
+		Body:        "content",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrPathEscape)
+}
+
 // TestConceptService_WriteConcept_AllowsNonReservedBasename_FR011 guards
 // against a strings.HasSuffix implementation that would wrongly reject
 // "changelog.md" (ends in "log.md") or "deploy-index.md" (ends in "index.md").
@@ -423,4 +442,29 @@ func TestConceptService_WriteConcept_AllowsNonReservedBasename_FR011(t *testing.
 			}
 		})
 	}
+}
+
+// TestAppendLog_DeterministicTimestamp verifies clock injection: the log entry
+// timestamp matches the injected time, not the real wall clock (P5.3/FR-031).
+func TestAppendLog_DeterministicTimestamp(t *testing.T) {
+	t.Parallel()
+
+	fixed := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	nr := newFakeNodeRepo()
+	br := newFakeBundleRepo()
+	_ = br.Put(context.Background(), domain.BundleEntry{Alias: "kb", RootPath: "/tmp/kb"})
+
+	svc := &usecase.ConceptService{
+		NodeRepository:   nr,
+		BundleRepository: br,
+		Now:              func() time.Time { return fixed },
+	}
+
+	ref := domain.ConceptRef{BundleAlias: "kb", RelativePath: "test.md"}
+	require.NoError(t, svc.WriteConcept(context.Background(), ref, makeConcept("note", "T", "body", nil)))
+
+	// Read the log file; its entry must contain the fixed timestamp.
+	logContent := nr.Reserved["kb:log.md"]
+	require.NotEmpty(t, logContent, "log.md was not written")
+	assert.Contains(t, logContent, "2024-01-15T12:00:00Z", "log entry should contain injected timestamp")
 }

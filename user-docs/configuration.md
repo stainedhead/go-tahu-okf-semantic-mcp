@@ -14,6 +14,12 @@ tahu reads configuration from a YAML file, with optional environment-variable an
 
 If the file does not exist, tahu starts with all defaults — no error is raised.
 
+To use a different config file, pass the `--config` flag to `tahu serve`:
+
+```bash
+bin/tahu serve --config /path/to/custom-config.yaml
+```
+
 ---
 
 ## All configuration keys
@@ -30,7 +36,7 @@ If the file does not exist, tahu starts with all defaults — no error is raised
 | `hnsw_m` | — | int | `16` | HNSW max connections per node (higher = better recall, more memory) |
 | `log_level` | `TAHU_LOG_LEVEL` | string | `info` | Structured log verbosity: `debug`, `info`, `warn`, `error` |
 
-*`minilm-l6-v2` is parsed but not implemented in v0.1; BM25 is always used.
+*`minilm-l6-v2` is not implemented in v0.1. Only `bm25` is valid; specifying any other value causes tahu to exit with an error at startup.
 
 Only five keys can be set via environment variable: `transport`, `port`, `bundle_registry`, `embedding_model`, and `log_level`. The remaining keys (`bind_addr`, `embedding_batch_size`, `hnsw_ef_construction`, `hnsw_m`) are config-file or flag only.
 

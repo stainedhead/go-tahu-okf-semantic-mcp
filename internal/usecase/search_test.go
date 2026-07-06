@@ -45,7 +45,7 @@ func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, er
 		// Polynomial hash over runes — deterministic, unique per text.
 		var h uint32
 		for _, r := range t {
-			h = h*31 + uint32(r)
+			h = h*31 + uint32(r) //nolint:gosec // G115: test hash, not security-sensitive
 		}
 		v[0] = float32(h%1000) / 1000.0
 		out[i] = v
