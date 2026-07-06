@@ -8,7 +8,7 @@
 
 ## Progress Summary
 
-**0 / 35 tasks complete**
+**5 / 35 tasks complete**
 
 ---
 
@@ -16,12 +16,12 @@
 
 | ID | Task | Deps | Est (h) | Status | Acceptance Criteria |
 |---|---|---|---|---|---|
-| P1.1 | Write RED test `TestHNSWStore_ZeroVector_NoNaNScores` | — | 0.5 | ⬜ | Test fails; confirms NaN score in search result |
-| P1.2 | Fix: BM25Embedder skip zero-norm vectors (FR-008) | P1.1 | 1 | ⬜ | `Embed` returns no zero-norm vecs; test P1.1 still green |
-| P1.3 | Fix: HNSWStore.Search NaN guard (FR-009) | P1.1 | 1 | ⬜ | `TestHNSWStore_ZeroVector_NoNaNScores` passes; no NaN in results |
-| P1.4 | Write RED test + fix: ReindexBundle scope-delete (FR-010) | — | 1.5 | ⬜ | `TestReindexBundle_RemovesStaleChunks` passes; deleted concept absent from search |
-| P1.5 | Write RED test + fix: HNSWStore.Load dims+reset (FR-011) | — | 1 | ⬜ | `TestHNSWStore_Load_ValidatesDims` passes; double-Load gives consistent state |
-| P1.6 | Fix: WriteReserved acquires f.mu (FR-004) + race test | — | 0.5 | ⬜ | `go test -race` passes; `TestFileNodeRepository_WriteReserved_ConcurrentNoRace` passes |
+| P1.1 | Write RED test `TestHNSWStore_ZeroVector_NoNaNScores` | — | 0.5 | ✅ | Test fails; confirms NaN score in search result |
+| P1.2 | Fix: BM25Embedder skip zero-norm vectors (FR-008) | P1.1 | 1 | ✅ | Store-level guard (isZeroNorm in Upsert) is embedder-agnostic fix |
+| P1.3 | Fix: HNSWStore.Search NaN guard (FR-009) | P1.1 | 1 | ✅ | `TestHNSWStore_ZeroVector_NoNaNScores` passes; no NaN in results |
+| P1.4 | Write RED test + fix: ReindexBundle scope-delete (FR-010) | — | 1.5 | ✅ | `TestReindexBundle_RemovesStaleChunks` passes; deleted concept absent from search |
+| P1.5 | Write RED test + fix: HNSWStore.Load dims+reset (FR-011) | — | 1 | ✅ | `TestHNSWStore_Load_ValidatesDims` passes; Load resets state; dims validated |
+| P1.6 | Fix: WriteReserved acquires f.mu (FR-004) + race test | — | 0.5 | ✅ | `go test -race` passes; `TestFileNodeRepository_WriteReserved_ConcurrentNoRace` passes |
 
 **Phase 1 gate:** `go test -race ./...` green; all RED tests present and passing.
 
