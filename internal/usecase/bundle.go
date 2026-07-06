@@ -150,13 +150,15 @@ func (s *BundleService) ReindexBundle(
 	// 3. Retrieve every concept to obtain body text for embedding.
 	chunks := make([]domain.EmbeddingChunk, 0, len(refs))
 	texts := make([]string, 0, len(refs))
+	newChunkIDs := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		concept, getErr := s.NodeRepository.Get(ctx, ref)
 		if getErr != nil {
 			return fmt.Errorf("ReindexBundle %q: get concept %s: %w", alias, ref, getErr)
 		}
+		chunkID := fmt.Sprintf("%s:%s:0", alias, ref.RelativePath)
 		chunks = append(chunks, domain.EmbeddingChunk{
-			ID:                 fmt.Sprintf("%s:%s:0", alias, ref.RelativePath),
+			ID:                 chunkID,
 			BundleAlias:        alias,
 			ConceptPath:        ref.RelativePath,
 			ChunkIndex:         0,
@@ -164,9 +166,17 @@ func (s *BundleService) ReindexBundle(
 			FrontmatterSummary: concept.Frontmatter.Type + ":" + concept.Frontmatter.Title,
 		})
 		texts = append(texts, concept.Body)
+		newChunkIDs = append(newChunkIDs, chunkID)
 	}
 
-	// 4. Embed and upsert — skip the network round-trip if there is nothing to index.
+	// 4. Delete all previously indexed chunks for this bundle.  This is done
+	// unconditionally (even when refs is empty) so that deleting the last
+	// concept in a bundle cleans up its stale vector-store entries.
+	if deleteErr := store.Delete(ctx, entry.ChunkIDs); deleteErr != nil {
+		return fmt.Errorf("ReindexBundle %q: delete stale chunks: %w", alias, deleteErr)
+	}
+
+	// 5. Embed and upsert — skip the network round-trip if there is nothing to index.
 	if len(texts) > 0 {
 		embeddings, embedErr := embedder.Embed(ctx, texts)
 		if embedErr != nil {
@@ -180,8 +190,9 @@ func (s *BundleService) ReindexBundle(
 		}
 	}
 
-	// 5. Stamp LastIndexedAt and persist.
+	// 6. Stamp LastIndexedAt, record new chunk IDs, and persist.
 	entry.LastIndexedAt = time.Now()
+	entry.ChunkIDs = newChunkIDs
 	if putErr := s.BundleRepository.Put(ctx, *entry); putErr != nil {
 		return fmt.Errorf("ReindexBundle %q: update bundle entry: %w", alias, putErr)
 	}

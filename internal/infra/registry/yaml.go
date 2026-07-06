@@ -28,6 +28,7 @@ type yamlEntry struct {
 	Tags          []string  `yaml:"tags,omitempty"`
 	CreatedAt     time.Time `yaml:"created_at"`
 	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty"`
+	ChunkIDs      []string  `yaml:"chunk_ids,omitempty"`
 }
 
 // yamlFile is the top-level document written to disk.
@@ -187,6 +188,7 @@ func toYAML(e domain.BundleEntry) yamlEntry {
 		Tags:          e.Tags,
 		CreatedAt:     e.CreatedAt,
 		LastIndexedAt: e.LastIndexedAt,
+		ChunkIDs:      e.ChunkIDs,
 	}
 }
 
@@ -198,5 +200,6 @@ func fromYAML(y yamlEntry) domain.BundleEntry {
 		Tags:          y.Tags,
 		CreatedAt:     y.CreatedAt,
 		LastIndexedAt: y.LastIndexedAt,
+		ChunkIDs:      y.ChunkIDs,
 	}
 }

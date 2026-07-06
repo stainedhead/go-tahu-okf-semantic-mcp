@@ -461,6 +461,59 @@ func TestBundleService_ListBundles_FR003(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestReindexBundle_RemovesStaleChunks
+// ---------------------------------------------------------------------------
+
+// TestReindexBundle_RemovesStaleChunks validates that a second ReindexBundle
+// call after a concept is deleted removes the stale vector-store chunks.
+// Spec reference: FR-004 stale-deletion requirement.
+func TestReindexBundle_RemovesStaleChunks(t *testing.T) {
+	ctx := context.Background()
+
+	nodeRepo := newFakeNodeRepo()
+	seedConcept(t, nodeRepo, "b", "a.md", "alpha content")
+	seedConcept(t, nodeRepo, "b", "b.md", "beta content")
+
+	br := newFakeBundleRepo()
+	if err := br.Put(ctx, domain.BundleEntry{Alias: "b", RootPath: "/tmp/b"}); err != nil {
+		t.Fatalf("setup Put: %v", err)
+	}
+
+	embedder := newFakeEmbedder(4)
+	store := newFakeVectorStore()
+	svc := &usecase.BundleService{
+		BundleRepository: br,
+		NodeRepository:   nodeRepo,
+	}
+
+	// First reindex: both concepts indexed.
+	if err := svc.ReindexBundle(ctx, "b", embedder, store); err != nil {
+		t.Fatalf("first ReindexBundle: %v", err)
+	}
+	if got := store.chunkCount(); got != 2 {
+		t.Fatalf("expected 2 chunks after first reindex, got %d", got)
+	}
+
+	// Remove b.md from the node repository.
+	nodeRepo.mu.Lock()
+	delete(nodeRepo.concepts, "b:b.md")
+	nodeRepo.mu.Unlock()
+
+	// Second reindex: b.md should be gone from the store.
+	if err := svc.ReindexBundle(ctx, "b", embedder, store); err != nil {
+		t.Fatalf("second ReindexBundle: %v", err)
+	}
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	for id := range store.chunks {
+		if strings.Contains(id, "b.md") {
+			t.Errorf("stale chunk %q still in store after reindex", id)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // TestBundleService_ReindexBundle_FR004
 // ---------------------------------------------------------------------------
 
