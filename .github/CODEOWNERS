@@ -1,0 +1,3 @@
+# CODEOWNERS — auto-requests GitHub Copilot as a code reviewer on every PR.
+# Copilot code review must be enabled under Settings > Copilot > Code review.
+* @github-copilot
