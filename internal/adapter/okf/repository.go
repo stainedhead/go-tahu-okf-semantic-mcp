@@ -17,10 +17,10 @@ var _ domain.NodeRepository = (*FileNodeRepository)(nil)
 // FileNodeRepository implements domain.NodeRepository backed by a filesystem
 // of OKF markdown documents.
 type FileNodeRepository struct {
-	// roots maps bundle alias to absolute bundle root path (as supplied by the
-	// caller; may or may not be symlink-resolved — ValidateConceptPath handles
-	// canonicalization).
-	roots map[string]string
+	// resolver is the single gateway for all path resolution and validation.
+	// All filesystem access goes through it, enforcing containment, reserved-name,
+	// and symlink-escape checks.
+	resolver *BundlePathResolver
 
 	// mu serializes writes across all bundles.  A per-bundle mutex would be
 	// more granular; a single mutex is simpler and correct for v0.1.
@@ -30,34 +30,18 @@ type FileNodeRepository struct {
 // NewFileNodeRepository creates a FileNodeRepository with the given alias→root
 // mapping.  root paths must be absolute and must already exist on disk.
 func NewFileNodeRepository(roots map[string]string) *FileNodeRepository {
-	r := make(map[string]string, len(roots))
-	for k, v := range roots {
-		r[k] = v
+	return &FileNodeRepository{
+		resolver: NewBundlePathResolver(roots),
 	}
-	return &FileNodeRepository{roots: r}
-}
-
-// bundleRoot returns the root path for alias, or ErrNotFound.
-func (f *FileNodeRepository) bundleRoot(alias string) (string, error) {
-	root, ok := f.roots[alias]
-	if !ok {
-		return "", fmt.Errorf("bundle %q: %w", alias, domain.ErrNotFound)
-	}
-	return root, nil
 }
 
 // Get retrieves a parsed OKFConcept by ref.
 func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*domain.OKFConcept, error) {
-	root, err := f.bundleRoot(ref.BundleAlias)
+	absPath, err := f.resolver.Resolve(ref.BundleAlias, ref.RelativePath)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := ValidateConceptPath(root, ref.RelativePath); err != nil {
-		return nil, err
-	}
-
-	absPath := filepath.Join(root, ref.RelativePath)
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -72,6 +56,10 @@ func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*dom
 	}
 	concept.Ref = ref
 
+	root, err := f.resolver.BundleRoot(ref.BundleAlias)
+	if err != nil {
+		return nil, err
+	}
 	conceptDir := filepath.Dir(absPath)
 	links, err := ExtractLinks(concept.Body, root, conceptDir)
 	if err != nil {
@@ -86,12 +74,8 @@ func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*dom
 // index.md or append to log.md — that responsibility belongs to the use-case
 // layer (ConceptService) which calls Put and then handles index/log updates.
 func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, concept *domain.OKFConcept) error {
-	root, err := f.bundleRoot(ref.BundleAlias)
+	absPath, err := f.resolver.ResolveNew(ref.BundleAlias, ref.RelativePath)
 	if err != nil {
-		return err
-	}
-
-	if err := ValidateConceptPath(root, ref.RelativePath); err != nil {
 		return err
 	}
 
@@ -107,7 +91,6 @@ func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, conce
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	absPath := filepath.Join(root, ref.RelativePath)
 	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
 		return fmt.Errorf("Put %s: mkdir: %w", ref, err)
 	}
@@ -123,9 +106,16 @@ func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, conce
 // bundle.  If subPath is empty, the bundle root is searched.  A non-existent
 // subPath returns an empty list rather than an error.
 func (f *FileNodeRepository) List(_ context.Context, bundleAlias string, subPath string) ([]domain.ConceptRef, error) {
-	root, err := f.bundleRoot(bundleAlias)
+	root, err := f.resolver.BundleRoot(bundleAlias)
 	if err != nil {
 		return nil, err
+	}
+
+	// Validate subPath containment before using it as a walk root.
+	if subPath != "" {
+		if _, err := f.resolver.ResolveReserved(bundleAlias, subPath); err != nil {
+			return nil, err
+		}
 	}
 
 	searchRoot := root
@@ -176,7 +166,7 @@ func (f *FileNodeRepository) ListTypes(ctx context.Context, bundleAlias string) 
 		return nil, err
 	}
 
-	root, err := f.bundleRoot(bundleAlias)
+	root, err := f.resolver.BundleRoot(bundleAlias)
 	if err != nil {
 		return nil, err
 	}
@@ -207,12 +197,11 @@ func (f *FileNodeRepository) ListTypes(ctx context.Context, bundleAlias string) 
 // ReadReserved returns the raw content of a reserved file at relPath within
 // the bundle.  Returns domain.ErrNotFound if the file does not exist.
 func (f *FileNodeRepository) ReadReserved(_ context.Context, bundleAlias string, relPath string) (string, error) {
-	root, err := f.bundleRoot(bundleAlias)
+	absPath, err := f.resolver.ResolveReserved(bundleAlias, relPath)
 	if err != nil {
 		return "", err
 	}
 
-	absPath := filepath.Join(root, filepath.Clean(relPath))
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -226,7 +215,7 @@ func (f *FileNodeRepository) ReadReserved(_ context.Context, bundleAlias string,
 
 // WriteReserved creates or replaces a reserved file at relPath within the bundle.
 func (f *FileNodeRepository) WriteReserved(_ context.Context, bundleAlias string, relPath string, content string) error {
-	root, err := f.bundleRoot(bundleAlias)
+	absPath, err := f.resolver.ResolveReserved(bundleAlias, relPath)
 	if err != nil {
 		return err
 	}
@@ -234,7 +223,6 @@ func (f *FileNodeRepository) WriteReserved(_ context.Context, bundleAlias string
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	absPath := filepath.Join(root, filepath.Clean(relPath))
 	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
 		return fmt.Errorf("WriteReserved %s/%s: mkdir: %w", bundleAlias, relPath, err)
 	}
