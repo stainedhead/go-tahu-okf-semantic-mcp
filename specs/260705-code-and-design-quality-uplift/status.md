@@ -13,7 +13,7 @@
 | 0 | Initial Research & Spec Creation | ✅ Complete | Spec reviewed; all warnings resolved |
 | 1 | Correctness fixes (NaN, stale reindex, dims, mutex) | ✅ Complete | All 5 fixes landed; go test -race ./... green |
 | 2 | Boundary-guard consolidation (path resolver) | ✅ Complete | BundlePathResolver landed; all traversal/symlink tests green |
-| 3 | Operational hardening (HTTP, stdio, CI) | Not Started | |
+| 3 | Operational hardening (HTTP, stdio, CI) | ✅ Complete | All 10 tasks done; gosec clean |
 | 4 | Honesty & retrieval quality (config, vocab, docs) | Not Started | |
 | 5 | Test uplift & domain hardening | Not Started | |
 
@@ -39,6 +39,7 @@ _None currently._
 
 ## Recent Activity
 
+- 2026-07-06: Phase 3 complete. 10 tasks: HTTP timeouts, loopback guard, stdio ctx, panic recovery, read caps, gosec linter, SHA-pinned Actions, integration test+CI job, config validation, flock registry. go test -race ./... green; golangci-lint 0 issues.
 - 2026-07-05: Phase 2 complete. 2 commits landed on feat/code-and-design-quality-uplift:
   - feat(okf): BundlePathResolver routes all repo methods through single validated-path gateway (P2.1–P2.6)
   - feat(usecase): WriteConcept validates ref path as defense-in-depth (P2.7)
