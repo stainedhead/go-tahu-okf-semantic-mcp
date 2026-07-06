@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 0 | Initial Research & Spec Creation | ✅ Complete | Spec reviewed; all warnings resolved |
 | 1 | Correctness fixes (NaN, stale reindex, dims, mutex) | ✅ Complete | All 5 fixes landed; go test -race ./... green |
-| 2 | Boundary-guard consolidation (path resolver) | Not Started | |
+| 2 | Boundary-guard consolidation (path resolver) | ✅ Complete | BundlePathResolver landed; all traversal/symlink tests green |
 | 3 | Operational hardening (HTTP, stdio, CI) | Not Started | |
 | 4 | Honesty & retrieval quality (config, vocab, docs) | Not Started | |
 | 5 | Test uplift & domain hardening | Not Started | |
@@ -39,6 +39,10 @@ _None currently._
 
 ## Recent Activity
 
+- 2026-07-05: Phase 2 complete. 2 commits landed on feat/code-and-design-quality-uplift:
+  - feat(okf): BundlePathResolver routes all repo methods through single validated-path gateway (P2.1–P2.6)
+  - feat(usecase): WriteConcept validates ref path as defense-in-depth (P2.7)
+  - go test -race ./... fully green.
 - 2026-07-05: Phase 1 complete. 4 commits landed on feat/code-and-design-quality-uplift:
   - fix(vectorstore): skip zero-norm vectors; guard NaN scores in Search (P1.1, P1.3)
   - fix(usecase): ReindexBundle deletes stale vectors before upserting (P1.4)

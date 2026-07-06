@@ -8,7 +8,7 @@
 
 ## Progress Summary
 
-**5 / 35 tasks complete**
+**12 / 35 tasks complete**
 
 ---
 
@@ -31,13 +31,13 @@
 
 | ID | Task | Deps | Est (h) | Status | Acceptance Criteria |
 |---|---|---|---|---|---|
-| P2.1 | Create `BundlePathResolver` + tests (FR-001) | Phase 1 | 2 | ⬜ | `TestBundlePathResolver_Resolve_RejectsTraversal` passes; symlink test passes |
-| P2.2 | Route `Get`/`Put` through resolver (FR-002) | P2.1 | 1 | ⬜ | Existing repository tests pass; no regression |
-| P2.3 | Route `ReadReserved`/`WriteReserved` through resolver (FR-002) | P2.1 | 1 | ⬜ | `TestFileNodeRepository_ReadReserved_RejectsTraversal` passes |
-| P2.4 | Route `List` through resolver (FR-003) | P2.1 | 0.5 | ⬜ | `TestFileNodeRepository_List_RejectsTraversal` passes |
-| P2.5 | EvalSymlinks on target in resolver (FR-006) | P2.1 | 1 | ⬜ | `TestBundlePathResolver_SymlinkEscape_Rejected` passes |
-| P2.6 | Consolidate `ValidatePath` → resolver (FR-005) | P2.1 | 0.5 | ⬜ | Handler tests pass; `validation.go` delegates to resolver |
-| P2.7 | Use-case path validation in `WriteConcept` (FR-007) | P2.1 | 0.5 | ⬜ | `TestConceptService_WriteConcept_RejectsTraversal` passes |
+| P2.1 | Create `BundlePathResolver` + tests (FR-001) | Phase 1 | 2 | ✅ | `TestBundlePathResolver_Resolve_RejectsTraversal` passes; symlink test passes |
+| P2.2 | Route `Get`/`Put` through resolver (FR-002) | P2.1 | 1 | ✅ | Existing repository tests pass; no regression |
+| P2.3 | Route `ReadReserved`/`WriteReserved` through resolver (FR-002) | P2.1 | 1 | ✅ | `TestFileNodeRepository_ReadReserved_RejectsTraversal` passes |
+| P2.4 | Route `List` through resolver (FR-003) | P2.1 | 0.5 | ✅ | `TestFileNodeRepository_List_RejectsTraversal` passes |
+| P2.5 | EvalSymlinks on target in resolver (FR-006) | P2.1 | 1 | ✅ | `TestBundlePathResolver_SymlinkEscape_Rejected` passes; covered by P2.1 resolver |
+| P2.6 | Consolidate `ValidatePath` → resolver (FR-005) | P2.1 | 0.5 | ✅ | Handler tests pass; `validation.go` comment updated to defense-in-depth role |
+| P2.7 | Use-case path validation in `WriteConcept` (FR-007) | P2.1 | 0.5 | ✅ | `TestConceptService_WriteConcept_RejectsTraversal` passes |
 
 **Phase 2 gate:** `go test -race ./...` green; traversal tests present and passing.
 
