@@ -24,5 +24,5 @@
 | 10 | Archive Fixes Spec              | ✅ Complete | 2026-07-06 | 2026-07-06 | ~1 |
 | 11 | Final Quality Pass              | ✅ Complete | 2026-07-06 | 2026-07-06 | ~1 |
 | 12 | Process Analysis Report         | ✅ Complete | 2026-07-06 | 2026-07-06 | ~5 |
-| 13 | Archive Spec                    | ⬜ Pending | — | — | — |
-| 14 | Open Pull Request               | ⬜ Pending | — | — | — |
+| 13 | Archive Spec                    | ✅ Complete | 2026-07-06 | 2026-07-06 | ~0 |
+| 14 | Open Pull Request               | 🔄 In Progress | 2026-07-06 | — | — |
