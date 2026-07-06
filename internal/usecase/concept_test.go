@@ -11,10 +11,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/usecase"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/usecase"
 )
 
 // ---------------------------------------------------------------------------

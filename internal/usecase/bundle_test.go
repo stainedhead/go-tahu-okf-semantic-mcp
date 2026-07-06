@@ -173,7 +173,7 @@ func (f *fakeNodeRepo) WriteReserved(_ context.Context, bundleAlias, relPath, co
 func tempDirWithMD(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "concept.md"), []byte("# Hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "concept.md"), []byte("# Hello"), 0o644); err != nil { //nolint:gosec // test helper
 		t.Fatalf("create test .md file: %v", err)
 	}
 	return dir

@@ -40,7 +40,7 @@ func GenerateIndex(_, dirPath string) (string, error) {
 		}
 
 		fp := filepath.Join(dirPath, name)
-		data, err := os.ReadFile(fp)
+		data, err := os.ReadFile(fp) //nolint:gosec // fp comes from WalkDir within validated bundle root
 		if err != nil {
 			// Include the file but without metadata.
 			concepts = append(concepts, conceptEntry{filename: name})
@@ -89,7 +89,7 @@ func AppendLog(_, dirPath string, entry string, timestamp time.Time) error {
 	logPath := filepath.Join(dirPath, "log.md")
 
 	var existing string
-	data, err := os.ReadFile(logPath)
+	data, err := os.ReadFile(logPath) //nolint:gosec // logPath is constructed from validated dirPath
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("AppendLog: read log %q: %w", logPath, err)
 	}
@@ -105,7 +105,7 @@ func AppendLog(_, dirPath string, entry string, timestamp time.Time) error {
 		// so newest entries appear first within the day.
 		after := existing[idx+len(dateHeader):]
 		newContent := existing[:idx+len(dateHeader)] + "\n" + entryLine + after
-		return os.WriteFile(logPath, []byte(newContent), 0o644)
+		return os.WriteFile(logPath, []byte(newContent), 0o644) //nolint:gosec // logPath is a validated reserved path
 	}
 
 	// No header for today: prepend a new section at the top of the file.
@@ -119,5 +119,5 @@ func AppendLog(_, dirPath string, entry string, timestamp time.Time) error {
 		sb.WriteString(existing)
 	}
 
-	return os.WriteFile(logPath, []byte(sb.String()), 0o644)
+	return os.WriteFile(logPath, []byte(sb.String()), 0o644) //nolint:gosec // logPath is a validated reserved path
 }

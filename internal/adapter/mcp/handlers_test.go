@@ -283,7 +283,7 @@ func TestHandleBundleAdd_RejectsColonInAlias_FIX006(t *testing.T) {
 	// Use a real temp directory with an .md file so path validation passes.
 	// This isolates the alias colon check from the path-not-found check.
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "note.md"), []byte("# hi"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "note.md"), []byte("# hi"), 0o644); err != nil { //nolint:gosec // test helper
 		t.Fatal(err)
 	}
 

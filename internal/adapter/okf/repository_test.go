@@ -27,10 +27,10 @@ func makeRepo(t *testing.T) (*okf.FileNodeRepository, string) {
 func writeFile(t *testing.T, dir, relPath, content string) {
 	t.Helper()
 	absPath := filepath.Join(dir, relPath)
-	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil { //nolint:gosec // test helper
 		t.Fatalf("mkdir %s: %v", filepath.Dir(absPath), err)
 	}
-	if err := os.WriteFile(absPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(absPath, []byte(content), 0o644); err != nil { //nolint:gosec // test helper
 		t.Fatalf("write %s: %v", absPath, err)
 	}
 }

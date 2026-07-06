@@ -14,6 +14,24 @@ import (
 // Compile-time assertion that FileNodeRepository satisfies domain.NodeRepository.
 var _ domain.NodeRepository = (*FileNodeRepository)(nil)
 
+// maxFileBytes is the read cap for concept and reserved files (1 MB, matching
+// the MCP write path MaxBodyBytes). Files larger than this are rejected before
+// reading to prevent memory exhaustion.
+const maxFileBytes = 1 << 20
+
+// checkFileSize returns ErrInputTooLarge if the file at path exceeds maxFileBytes.
+// It does not return an error if the file does not exist — the caller handles that.
+func checkFileSize(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil // let the caller's ReadFile handle ErrNotExist
+	}
+	if info.Size() > maxFileBytes {
+		return fmt.Errorf("%w: file is %d bytes (limit %d)", domain.ErrInputTooLarge, info.Size(), maxFileBytes)
+	}
+	return nil
+}
+
 // FileNodeRepository implements domain.NodeRepository backed by a filesystem
 // of OKF markdown documents.
 type FileNodeRepository struct {
@@ -42,7 +60,11 @@ func (f *FileNodeRepository) Get(_ context.Context, ref domain.ConceptRef) (*dom
 		return nil, err
 	}
 
-	data, err := os.ReadFile(absPath)
+	if err := checkFileSize(absPath); err != nil {
+		return nil, fmt.Errorf("concept %s: %w", ref, err)
+	}
+
+	data, err := os.ReadFile(absPath) //nolint:gosec // path validated by BundlePathResolver
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("concept %s: %w", ref, domain.ErrNotFound)
@@ -91,11 +113,11 @@ func (f *FileNodeRepository) Put(_ context.Context, ref domain.ConceptRef, conce
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil { //nolint:gosec // path validated by BundlePathResolver
 		return fmt.Errorf("Put %s: mkdir: %w", ref, err)
 	}
 
-	if err := os.WriteFile(absPath, data, 0o644); err != nil {
+	if err := os.WriteFile(absPath, data, 0o644); err != nil { //nolint:gosec // path validated by BundlePathResolver
 		return fmt.Errorf("Put %s: write: %w", ref, err)
 	}
 
@@ -176,7 +198,7 @@ func (f *FileNodeRepository) ListTypes(ctx context.Context, bundleAlias string) 
 
 	for _, ref := range refs {
 		absPath := filepath.Join(root, ref.RelativePath)
-		data, err := os.ReadFile(absPath)
+		data, err := os.ReadFile(absPath) //nolint:gosec // path comes from List which walks the validated root
 		if err != nil {
 			continue
 		}
@@ -202,7 +224,11 @@ func (f *FileNodeRepository) ReadReserved(_ context.Context, bundleAlias string,
 		return "", err
 	}
 
-	data, err := os.ReadFile(absPath)
+	if err := checkFileSize(absPath); err != nil {
+		return "", fmt.Errorf("ReadReserved %s/%s: %w", bundleAlias, relPath, err)
+	}
+
+	data, err := os.ReadFile(absPath) //nolint:gosec // path validated by BundlePathResolver
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", fmt.Errorf("reserved file %s/%s: %w", bundleAlias, relPath, domain.ErrNotFound)
@@ -223,11 +249,11 @@ func (f *FileNodeRepository) WriteReserved(_ context.Context, bundleAlias string
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil { //nolint:gosec // path validated by BundlePathResolver
 		return fmt.Errorf("WriteReserved %s/%s: mkdir: %w", bundleAlias, relPath, err)
 	}
 
-	if err := os.WriteFile(absPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(absPath, []byte(content), 0o644); err != nil { //nolint:gosec // path validated by BundlePathResolver
 		return fmt.Errorf("WriteReserved %s/%s: write: %w", bundleAlias, relPath, err)
 	}
 

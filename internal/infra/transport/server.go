@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -29,21 +30,33 @@ func NewMCPServer(svc mcpadapter.Services) *mcpserver.MCPServer {
 	return srv
 }
 
-// ServeStdio starts the MCP stdio transport and blocks until the process
-// receives SIGTERM/SIGINT or an error occurs (FR-015).
-func ServeStdio(_ context.Context, srv *mcpserver.MCPServer) error {
-	if err := mcpserver.ServeStdio(srv); err != nil {
-		return fmt.Errorf("transport.ServeStdio: %w", err)
+// ServeStdio starts the MCP stdio transport and blocks until ctx is cancelled
+// or an error occurs (FR-022).
+func ServeStdio(ctx context.Context, srv *mcpserver.MCPServer) error {
+	errCh := make(chan error, 1)
+	go func() {
+		if err := mcpserver.ServeStdio(srv); err != nil {
+			errCh <- fmt.Errorf("transport.ServeStdio: %w", err)
+			return
+		}
+		errCh <- nil
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
 	}
-	return nil
 }
 
 // ServeHTTP starts an HTTP/SSE MCP server on addr and blocks until ctx is
 // cancelled. It also exposes GET /healthz returning 200 OK (FR-017).
-//
-// The SSE and message endpoints are served at /sse and /message respectively.
-// All other paths are handled by the SSEServer.
+// Non-loopback bind addresses are rejected at startup (FR-021).
 func ServeHTTP(ctx context.Context, srv *mcpserver.MCPServer, addr string) error {
+	if err := validateBindAddr(addr); err != nil {
+		return err
+	}
+
 	baseURL := "http://" + addr
 
 	// Build the SSEServer. WithBaseURL tells it how to construct client URLs.
@@ -63,8 +76,12 @@ func ServeHTTP(ctx context.Context, srv *mcpserver.MCPServer, addr string) error
 	mux.Handle("/", sseSrv)
 
 	httpSrv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 
 	errCh := make(chan error, 1)
@@ -89,6 +106,23 @@ func ServeHTTP(ctx context.Context, srv *mcpserver.MCPServer, addr string) error
 	}
 }
 
+// validateBindAddr returns an error when addr binds to a non-loopback interface.
+// HTTP mode is loopback-only for security (FR-021).
+func validateBindAddr(addr string) error {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	if host == "localhost" {
+		return nil
+	}
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("transport: bind address %q is non-loopback; HTTP mode is loopback-only for security (use 127.0.0.1 or ::1)", addr)
+}
+
 // ---------------------------------------------------------------------------
 // FR-021 structured logging middleware
 // ---------------------------------------------------------------------------
@@ -107,19 +141,31 @@ func RequestIDFromContext(ctx context.Context) string {
 }
 
 // loggingMiddleware returns a ToolHandlerMiddleware that emits a JSON log line
-// for every MCP tool invocation with the fields required by FR-021:
-// request_id, tool, duration_ms, level, and (on error) error.
-// The request_id is also propagated via context so downstream handlers can
-// correlate their own log lines to the originating MCP call.
+// for every MCP tool invocation. It also recovers from tool handler panics so
+// the daemon stays alive (FR-023).
 func loggingMiddleware() mcpserver.ToolHandlerMiddleware {
 	return func(next mcpserver.ToolHandlerFunc) mcpserver.ToolHandlerFunc {
-		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return func(ctx context.Context, req mcp.CallToolRequest) (result *mcp.CallToolResult, err error) {
 			requestID := uuid.New().String()
 			ctx = context.WithValue(ctx, requestIDKey, requestID)
 			tool := req.Params.Name
 			start := time.Now()
 
-			result, err := next(ctx, req)
+			defer func() {
+				if r := recover(); r != nil {
+					durationMS := time.Since(start).Milliseconds()
+					slog.Error("tool handler panic",
+						slog.String("request_id", requestID),
+						slog.String("tool", tool),
+						slog.Int64("duration_ms", durationMS),
+						slog.Any("panic", r),
+					)
+					err = fmt.Errorf("internal error: tool %s panicked", tool)
+					result = nil
+				}
+			}()
+
+			result, err = next(ctx, req)
 
 			durationMS := time.Since(start).Milliseconds()
 

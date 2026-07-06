@@ -345,7 +345,7 @@ func (s *HNSWStore) readGraph() error {
 // a no-op.
 func (s *HNSWStore) readMeta() error {
 	metaPath := s.persistPath + metaSuffix
-	f, err := os.Open(metaPath)
+	f, err := os.Open(metaPath) //nolint:gosec // metaPath is constructed from config-supplied persistPath
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

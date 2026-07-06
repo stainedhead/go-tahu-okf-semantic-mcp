@@ -49,7 +49,7 @@ func Load() (*Config, error) {
 	cfg := defaults()
 
 	cfgPath := filepath.Join(homeDir(), ".tahu", "config.yaml")
-	data, err := os.ReadFile(cfgPath)
+	data, err := os.ReadFile(cfgPath) //nolint:gosec // cfgPath is from UserHomeDir, not user input
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("config.Load: read %s: %w", cfgPath, err)
 	}

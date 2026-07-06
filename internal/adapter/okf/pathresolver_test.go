@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/okf"
-	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/okf"
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
 
 func TestBundlePathResolver_Resolve_RejectsTraversal(t *testing.T) {
@@ -36,8 +37,8 @@ func TestBundlePathResolver_Resolve_RejectsReservedNames(t *testing.T) {
 func TestBundlePathResolver_Resolve_ValidPath(t *testing.T) {
 	dir := t.TempDir()
 	conceptPath := filepath.Join(dir, "notes", "concept.md")
-	require.NoError(t, os.MkdirAll(filepath.Dir(conceptPath), 0o755))
-	require.NoError(t, os.WriteFile(conceptPath, []byte("# test"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(conceptPath), 0o755))      //nolint:gosec // test helper
+	require.NoError(t, os.WriteFile(conceptPath, []byte("# test"), 0o644)) //nolint:gosec // test helper
 
 	// On macOS /var → /private/var via symlink; resolve canonical path for comparison.
 	canonicalPath, err := filepath.EvalSymlinks(conceptPath)
@@ -53,7 +54,7 @@ func TestBundlePathResolver_SymlinkEscape_Rejected(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()
 	outsideFile := filepath.Join(outside, "secret.md")
-	require.NoError(t, os.WriteFile(outsideFile, []byte("secret"), 0o644))
+	require.NoError(t, os.WriteFile(outsideFile, []byte("secret"), 0o644)) //nolint:gosec // test helper
 
 	// Create a symlink inside the bundle pointing outside.
 	symlinkPath := filepath.Join(dir, "escape.md")

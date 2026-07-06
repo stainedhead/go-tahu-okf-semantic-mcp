@@ -152,7 +152,7 @@ func (r *YAMLBundleRepository) save(f *yamlFile) error {
 		return fmt.Errorf("registry.save: marshal: %w", err)
 	}
 	dir := filepath.Dir(r.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // dir is from config-supplied registry path
 		return fmt.Errorf("registry.save: mkdir %s: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".tahu-registry-*.tmp")
