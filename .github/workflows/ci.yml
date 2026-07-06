@@ -42,7 +42,7 @@ jobs:
 
       - name: Coverage gate — domain (≥90%)
         run: |
-          go test -coverprofile=domain.out ./internal/domain/...
+          go test -coverprofile=domain.out ./internal/domain
           pct=$(go tool cover -func=domain.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
           awk -v p="$pct" 'BEGIN {
             if (p+0 < 90) { print "FAIL: domain coverage " p "% is below 90%"; exit 1 }

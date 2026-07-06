@@ -545,8 +545,8 @@ func TestHNSWStore_New_ValidationErrors(t *testing.T) {
 	dir := t.TempDir()
 
 	cases := []struct {
-		name           string
-		dims, ef, m    int
+		name        string
+		dims, ef, m int
 	}{
 		{"zero dims", 0, 20, 4},
 		{"zero ef", 4, 0, 4},

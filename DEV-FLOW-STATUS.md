@@ -19,10 +19,10 @@
 | 5  | Code and Design Review          | ✅ Complete | 2026-07-06 | 2026-07-06 | ~20 |
 | 6  | Prepare Review PRD              | ✅ Complete | 2026-07-06 | 2026-07-06 | ~10 |
 | 7  | Archive Original Spec           | ✅ Complete | 2026-07-06 | 2026-07-06 | ~2 |
-| 8  | Spec Review Fixes               | 🔄 In Progress | 2026-07-06 | — | — |
-| 9  | Implement Review Fixes          | ⬜ Pending | — | — | — |
-| 10 | Archive Fixes Spec              | ⬜ Pending | — | — | — |
-| 11 | Final Quality Pass              | ⬜ Pending | — | — | — |
+| 8  | Spec Review Fixes               | ✅ Complete | 2026-07-06 | 2026-07-06 | ~5 |
+| 9  | Implement Review Fixes          | ✅ Complete | 2026-07-06 | 2026-07-06 | ~60 |
+| 10 | Archive Fixes Spec              | ✅ Complete | 2026-07-06 | 2026-07-06 | ~1 |
+| 11 | Final Quality Pass              | 🔄 In Progress | 2026-07-06 | — | — |
 | 12 | Process Analysis Report         | ⬜ Pending | — | — | — |
 | 13 | Archive Spec                    | ⬜ Pending | — | — | — |
 | 14 | Open Pull Request               | ⬜ Pending | — | — | — |
