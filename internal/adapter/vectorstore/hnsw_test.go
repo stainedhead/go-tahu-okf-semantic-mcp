@@ -345,6 +345,71 @@ func TestHNSWStore_AllOOV_Search_ReturnsEmpty(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// TestHNSWStore_Load_ResetsExistingState
+//
+// Spec: Load completely replaces in-memory state from disk; it does not merge
+// with existing chunks — SpecFix3-Reset.
+// ---------------------------------------------------------------------------
+
+func TestHNSWStore_Load_ResetsExistingState(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/idx"
+
+	// Build s1 with chunk "old", persist to disk.
+	s1, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+	require.NoError(t, s1.Upsert(context.Background(), []domain.EmbeddingChunk{
+		{ID: "old", BundleAlias: "b", ConceptPath: "old.md", Embedding: []float32{1, 0, 0, 0}},
+	}))
+	require.NoError(t, s1.Persist(context.Background()))
+
+	// Build s2 from the same path, add "other" without persisting.
+	s2, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+	require.NoError(t, s2.Upsert(context.Background(), []domain.EmbeddingChunk{
+		{ID: "other", BundleAlias: "b", ConceptPath: "other.md", Embedding: []float32{0, 1, 0, 0}},
+	}))
+
+	// Load should reset s2 to only contain what's on disk ("old").
+	require.NoError(t, s2.Load(context.Background()))
+
+	results, err := s2.Search(context.Background(), []float32{0, 1, 0, 0}, domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	for _, r := range results {
+		if r.Source == "b:other.md" {
+			t.Error("Load should have reset state; 'other' should not be present after Load")
+		}
+	}
+}
+
+// TestHNSWStore_Load_ValidatesDims
+//
+// Spec: Load returns an error when the persisted embedding dimensionality
+// does not match the configured dims — SpecFix3-Dims.
+// ---------------------------------------------------------------------------
+
+func TestHNSWStore_Load_ValidatesDims(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/idx"
+
+	// Persist a store with dims=4.
+	s1, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+	require.NoError(t, s1.Upsert(context.Background(), []domain.EmbeddingChunk{
+		{ID: "a", BundleAlias: "b", ConceptPath: "a.md", Embedding: []float32{1, 0, 0, 0}},
+	}))
+	require.NoError(t, s1.Persist(context.Background()))
+
+	// Load into a store configured with dims=8 — must return an error.
+	s2, err := vectorstore.New(path, 8, testEfConstruction, testM)
+	require.NoError(t, err)
+	if err := s2.Load(context.Background()); err == nil {
+		t.Error("Load should return an error when persisted dims differ from configured dims")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // TestHNSWStore_Load_NoopWhenFileAbsent
 //
 // Spec: Load is a no-op when the index file does not exist (cold start) — AC-G7.

@@ -209,6 +209,8 @@ func (s *HNSWStore) Persist(_ context.Context) error {
 
 // Load restores the HNSW graph and chunk metadata from durable storage.
 // If the index file does not exist this is a no-op (cold start).
+// Load is idempotent: calling it on a store that already has in-memory state
+// resets that state entirely to what is on disk (no merging).
 func (s *HNSWStore) Load(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,12 +223,35 @@ func (s *HNSWStore) Load(_ context.Context) error {
 		return fmt.Errorf("vectorstore.Load: stat %q: %w", s.persistPath, err)
 	}
 
+	// Reset in-memory state before loading so Load does not merge with any
+	// previously-upserted (but not persisted) data.
+	g := hnsw.NewGraph[string]()
+	g.M = s.graph.M
+	g.EfSearch = s.graph.EfSearch
+	g.Distance = s.graph.Distance
+	s.graph = g
+	s.chunks = make(map[string]domain.EmbeddingChunk)
+
 	if err := s.readGraph(); err != nil {
 		return fmt.Errorf("vectorstore.Load: read graph: %w", err)
 	}
 	if err := s.readMeta(); err != nil {
 		return fmt.Errorf("vectorstore.Load: read meta: %w", err)
 	}
+
+	// Validate that the persisted embedding dimensionality matches this
+	// store's configured dims.  A mismatch indicates the index was built
+	// with a different model and must be rebuilt.
+	for _, c := range s.chunks {
+		if len(c.Embedding) != s.dims {
+			return fmt.Errorf(
+				"vectorstore.Load: persisted dims %d != configured dims %d — rebuild required",
+				len(c.Embedding), s.dims,
+			)
+		}
+		break // only need to check one; all chunks share the same model
+	}
+
 	return nil
 }
 
