@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -98,6 +99,9 @@ func (s *HNSWStore) Upsert(_ context.Context, chunks []domain.EmbeddingChunk) er
 				c.ID, len(c.Embedding), s.dims,
 			)
 		}
+		if isZeroNorm(c.Embedding) {
+			continue // silently skip; BM25 OOV produces zero vectors
+		}
 		s.graph.Add(hnsw.MakeNode(c.ID, c.Embedding))
 		s.chunks[c.ID] = c
 	}
@@ -143,6 +147,9 @@ func (s *HNSWStore) Search(_ context.Context, query []float32, scope domain.Scop
 			continue
 		}
 		score := float32(1) - hnsw.CosineDistance(query, n.Value)
+		if math.IsNaN(float64(score)) {
+			continue
+		}
 		candidates = append(candidates, candidate{chunk: c, score: score})
 	}
 
@@ -326,6 +333,18 @@ func (s *HNSWStore) readMeta() error {
 		return fmt.Errorf("decode meta: %w", err)
 	}
 	return nil
+}
+
+// isZeroNorm reports whether all elements of v are zero.  A zero-norm vector
+// produces NaN from cosine-distance computations (division by zero magnitude)
+// and must be excluded from the HNSW graph.
+func isZeroNorm(v []float32) bool {
+	for _, x := range v {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // chunkMatchesScope reports whether c falls within the given search scope.

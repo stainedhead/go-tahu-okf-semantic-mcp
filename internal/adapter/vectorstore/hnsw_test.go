@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/vectorstore"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
@@ -294,6 +296,51 @@ func TestHNSWStore_PersistAndLoad_SameResults(t *testing.T) {
 			t.Errorf("result[%d] ChunkText: before=%q after=%q",
 				i, before[i].ChunkText, after[i].ChunkText)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// TestHNSWStore_ZeroVector_NoNaNScores
+//
+// Spec: Upsert silently skips zero-norm vectors; Search never produces NaN
+// scores — SpecFix1.
+// ---------------------------------------------------------------------------
+
+func TestHNSWStore_ZeroVector_NoNaNScores(t *testing.T) {
+	s, err := vectorstore.New(t.TempDir()+"/idx", 4, 200, 16)
+	require.NoError(t, err)
+	zero := make([]float32, 4)
+	real := []float32{1, 0, 0, 0}
+	_ = s.Upsert(context.Background(), []domain.EmbeddingChunk{
+		{ID: "z", BundleAlias: "b", ConceptPath: "z.md", Text: "zero", Embedding: zero},
+		{ID: "a", BundleAlias: "b", ConceptPath: "a.md", Text: "a", Embedding: real},
+	})
+	results, err := s.Search(context.Background(), real, domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	for _, r := range results {
+		if math.IsNaN(float64(r.Score)) {
+			t.Errorf("got NaN score for source %s", r.Source)
+		}
+	}
+}
+
+// TestHNSWStore_AllOOV_Search_ReturnsEmpty
+//
+// Spec: A zero-vector query (all-OOV) returns an empty result set — SpecFix2.
+// ---------------------------------------------------------------------------
+
+func TestHNSWStore_AllOOV_Search_ReturnsEmpty(t *testing.T) {
+	s, err := vectorstore.New(t.TempDir()+"/idx", 4, 200, 16)
+	require.NoError(t, err)
+	zero := make([]float32, 4)
+	_ = s.Upsert(context.Background(), []domain.EmbeddingChunk{
+		{ID: "z", BundleAlias: "b", ConceptPath: "z.md", Text: "zero", Embedding: zero},
+	})
+	results, err := s.Search(context.Background(), zero, domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	if len(results) != 0 {
+		t.Errorf("expected empty results for zero-vector query, got %d", len(results))
 	}
 }
 
