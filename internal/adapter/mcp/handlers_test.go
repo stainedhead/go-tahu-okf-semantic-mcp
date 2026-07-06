@@ -397,3 +397,196 @@ func TestHandlePath_RejectsTraversal_FR019(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Additional handler tests for coverage uplift (FR-R04)
+// ---------------------------------------------------------------------------
+
+// TestHandleBundleList_Empty verifies bundle_list returns an empty result
+// when no bundles are registered.
+func TestHandleBundleList_Empty(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{}, svc.HandleBundleList)
+	if err != nil {
+		t.Fatalf("HandleBundleList: unexpected error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Errorf("HandleBundleList: expected non-error result, got %v", result)
+	}
+}
+
+// TestHandleConceptRead_NotFound verifies concept_read returns an error
+// for a concept that does not exist.
+func TestHandleConceptRead_NotFound(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"ref": "kb:missing.md",
+	}, svc.HandleConceptRead)
+	if err == nil {
+		t.Fatal("expected error for missing concept, got nil")
+	}
+}
+
+// TestHandleConceptRead_InvalidRef verifies concept_read rejects a malformed ref.
+func TestHandleConceptRead_InvalidRef(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"ref": "notacolon",
+	}, svc.HandleConceptRead)
+	if err == nil {
+		t.Fatal("expected error for invalid ref, got nil")
+	}
+}
+
+// TestHandleConceptWrite_HappyPath verifies concept_write creates a concept.
+func TestHandleConceptWrite_HappyPath(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{
+		"ref":  "kb:notes/hello.md",
+		"type": "note",
+		"body": "# Hello",
+	}, svc.HandleConceptWrite)
+	if err != nil {
+		t.Fatalf("HandleConceptWrite happy path: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Errorf("expected non-error result")
+	}
+}
+
+// TestHandleConceptList_Empty verifies concept_list returns empty for unknown bundle.
+func TestHandleConceptList_Empty(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{
+		"bundle_alias": "noexist",
+	}, svc.HandleConceptList)
+	if err != nil {
+		t.Fatalf("HandleConceptList: unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+// TestHandleConceptLinks_NotFound verifies concept_links returns an error for
+// a non-existent concept.
+func TestHandleConceptLinks_NotFound(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"ref": "kb:ghost.md",
+	}, svc.HandleConceptLinks)
+	if err == nil {
+		t.Fatal("expected error for missing concept, got nil")
+	}
+}
+
+// TestHandleIndexRead_NotFound verifies index_read returns an error when
+// index.md does not exist.
+func TestHandleIndexRead_NotFound(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"bundle_alias": "kb",
+		"dir_path":     "",
+	}, svc.HandleIndexRead)
+	if err == nil {
+		t.Fatal("expected ErrNotFound for missing index.md, got nil")
+	}
+}
+
+// TestHandleLogRead_NotFound verifies log_read returns an error when
+// log.md does not exist.
+func TestHandleLogRead_NotFound(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"bundle_alias": "kb",
+		"dir_path":     "",
+	}, svc.HandleLogRead)
+	if err == nil {
+		t.Fatal("expected ErrNotFound for missing log.md, got nil")
+	}
+}
+
+// TestHandleConceptTypeList_Empty verifies concept_type_list returns an empty
+// list for a bundle with no typed concepts.
+func TestHandleConceptTypeList_Empty(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{
+		"bundle_alias": "kb",
+	}, svc.HandleConceptTypeList)
+	if err != nil {
+		t.Fatalf("HandleConceptTypeList: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Errorf("expected non-error result")
+	}
+}
+
+// TestHandleSearchSemantic_EmptyStore verifies search_semantic returns
+// empty results on an empty vector store.
+func TestHandleSearchSemantic_EmptyStore(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{
+		"query": "anything",
+		"scope": "global",
+		"top_k": 5,
+	}, svc.HandleSearchSemantic)
+	if err != nil {
+		t.Fatalf("HandleSearchSemantic: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Errorf("expected non-error result")
+	}
+}
+
+// TestHandleSearchKeyword_EmptyStore verifies search_keyword returns
+// empty results on an empty vector store.
+func TestHandleSearchKeyword_EmptyStore(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	result, err := callTool(ctx, map[string]any{
+		"query": "anything",
+		"scope": "global",
+		"top_k": 5,
+	}, svc.HandleSearchKeyword)
+	if err != nil {
+		t.Fatalf("HandleSearchKeyword: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Errorf("expected non-error result")
+	}
+}
+
+// TestHandleBundleRemove_NotFound verifies bundle_remove returns an error
+// for an unknown alias.
+func TestHandleBundleRemove_NotFound(t *testing.T) {
+	svc := newTestServices()
+	ctx := context.Background()
+
+	_, err := callTool(ctx, map[string]any{
+		"alias": "notregistered",
+	}, svc.HandleBundleRemove)
+	if err == nil {
+		t.Fatal("expected error removing unknown bundle, got nil")
+	}
+}

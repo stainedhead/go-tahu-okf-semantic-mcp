@@ -8,7 +8,7 @@ import (
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 )
 
-// ValidateConceptPath ensures that relPath, when joined with bundleRoot, stays
+// validateConceptPath ensures that relPath, when joined with bundleRoot, stays
 // within the bundle root and does not target a reserved filename.
 //
 // Security model:
@@ -19,7 +19,7 @@ import (
 //     which resolves any ".." traversal sequences in relPath regardless of
 //     whether the target file exists yet — making it safe to call for new
 //     concepts that have not been written.
-func ValidateConceptPath(bundleRoot, relPath string) error {
+func validateConceptPath(bundleRoot, relPath string) error {
 	canonicalRoot, err := filepath.EvalSymlinks(bundleRoot)
 	if err != nil {
 		return fmt.Errorf("ValidateConceptPath: resolve bundle root: %w", err)

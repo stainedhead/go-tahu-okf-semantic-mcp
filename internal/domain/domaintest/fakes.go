@@ -171,6 +171,14 @@ func (e *Embedder) Embed(_ context.Context, texts []string) ([][]float32, error)
 // Dims implements domain.Embedder.
 func (e *Embedder) Dims() int { return e.Dims_ }
 
+// Compile-time assertions that all fakes satisfy their domain interfaces.
+var (
+	_ domain.BundleRepository = (*BundleRepository)(nil)
+	_ domain.NodeRepository   = (*NodeRepository)(nil)
+	_ domain.Embedder         = (*Embedder)(nil)
+	_ domain.VectorStore      = (*VectorStore)(nil)
+)
+
 // VectorStore is an in-memory fake domain.VectorStore.
 type VectorStore struct {
 	mu     sync.RWMutex
@@ -185,22 +193,8 @@ func (v *VectorStore) Upsert(_ context.Context, chunks []domain.EmbeddingChunk) 
 	return nil
 }
 
-// DeleteByBundle implements domain.VectorStore.
-func (v *VectorStore) DeleteByBundle(_ context.Context, alias string) error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	kept := v.Chunks[:0]
-	for _, c := range v.Chunks {
-		if c.BundleAlias != alias {
-			kept = append(kept, c)
-		}
-	}
-	v.Chunks = kept
-	return nil
-}
-
-// DeleteByIDs implements domain.VectorStore.
-func (v *VectorStore) DeleteByIDs(_ context.Context, ids []string) error {
+// Delete implements domain.VectorStore.
+func (v *VectorStore) Delete(_ context.Context, ids []string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	idSet := make(map[string]struct{}, len(ids))

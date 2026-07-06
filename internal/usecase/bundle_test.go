@@ -1,7 +1,7 @@
 package usecase_test
 
 // fakeEmbedder and fakeVectorStore are declared in search_test.go (same package).
-// This file owns fakeBundleRepo and fakeNodeRepo, which are also used by concept_test.go.
+// newFakeBundleRepo and newFakeNodeRepo delegate to domaintest (FR-032).
 
 import (
 	"context"
@@ -9,160 +9,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
+	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain/domaintest"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/usecase"
 )
 
-// ---------------------------------------------------------------------------
-// Compile-time interface conformance checks.
-// ---------------------------------------------------------------------------
+// Type aliases so existing test code keeps compiling without a line-by-line rename.
+type fakeBundleRepo = domaintest.BundleRepository
+type fakeNodeRepo = domaintest.NodeRepository
 
-var (
-	_ domain.BundleRepository = (*fakeBundleRepo)(nil)
-	_ domain.NodeRepository   = (*fakeNodeRepo)(nil)
-)
-
-// ---------------------------------------------------------------------------
-// fakeBundleRepo — in-memory BundleRepository
-// ---------------------------------------------------------------------------
-
-type fakeBundleRepo struct {
-	mu      sync.RWMutex
-	bundles map[string]domain.BundleEntry
-}
-
-func newFakeBundleRepo() *fakeBundleRepo {
-	return &fakeBundleRepo{bundles: make(map[string]domain.BundleEntry)}
-}
-
-func (f *fakeBundleRepo) Get(_ context.Context, alias string) (*domain.BundleEntry, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	e, ok := f.bundles[alias]
-	if !ok {
-		return nil, domain.ErrNotFound
-	}
-	return &e, nil
-}
-
-func (f *fakeBundleRepo) Put(_ context.Context, entry domain.BundleEntry) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.bundles[entry.Alias] = entry
-	return nil
-}
-
-func (f *fakeBundleRepo) Delete(_ context.Context, alias string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	delete(f.bundles, alias)
-	return nil
-}
-
-func (f *fakeBundleRepo) List(_ context.Context) ([]domain.BundleEntry, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	out := make([]domain.BundleEntry, 0, len(f.bundles))
-	for _, e := range f.bundles {
-		out = append(out, e)
-	}
-	return out, nil
-}
-
-// ---------------------------------------------------------------------------
-// fakeNodeRepo — in-memory NodeRepository
-// ---------------------------------------------------------------------------
-
-type fakeNodeRepo struct {
-	mu       sync.RWMutex
-	concepts map[string]*domain.OKFConcept
-	reserved map[string]string
-}
-
-func newFakeNodeRepo() *fakeNodeRepo {
-	return &fakeNodeRepo{
-		concepts: make(map[string]*domain.OKFConcept),
-		reserved: make(map[string]string),
-	}
-}
-
-func (f *fakeNodeRepo) Get(_ context.Context, ref domain.ConceptRef) (*domain.OKFConcept, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	c, ok := f.concepts[ref.String()]
-	if !ok {
-		return nil, domain.ErrNotFound
-	}
-	return c, nil
-}
-
-func (f *fakeNodeRepo) Put(_ context.Context, ref domain.ConceptRef, concept *domain.OKFConcept) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.concepts[ref.String()] = concept
-	return nil
-}
-
-func (f *fakeNodeRepo) List(_ context.Context, bundleAlias, subPath string) ([]domain.ConceptRef, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	bundlePrefix := bundleAlias + ":"
-	pathPrefix := bundlePrefix
-	if subPath != "" {
-		pathPrefix = bundlePrefix + subPath
-	}
-	var refs []domain.ConceptRef
-	for key := range f.concepts {
-		if strings.HasPrefix(key, pathPrefix) {
-			refs = append(refs, domain.ConceptRef{
-				BundleAlias:  bundleAlias,
-				RelativePath: strings.TrimPrefix(key, bundlePrefix),
-			})
-		}
-	}
-	return refs, nil
-}
-
-func (f *fakeNodeRepo) ListTypes(_ context.Context, bundleAlias string) ([]string, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	prefix := bundleAlias + ":"
-	seen := make(map[string]struct{})
-	for key, c := range f.concepts {
-		if !strings.HasPrefix(key, prefix) {
-			continue
-		}
-		if t := c.Frontmatter.Type; t != "" {
-			seen[t] = struct{}{}
-		}
-	}
-	out := make([]string, 0, len(seen))
-	for t := range seen {
-		out = append(out, t)
-	}
-	return out, nil
-}
-
-func (f *fakeNodeRepo) ReadReserved(_ context.Context, bundleAlias, relPath string) (string, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	content, ok := f.reserved[bundleAlias+":"+relPath]
-	if !ok {
-		return "", domain.ErrNotFound
-	}
-	return content, nil
-}
-
-func (f *fakeNodeRepo) WriteReserved(_ context.Context, bundleAlias, relPath, content string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.reserved[bundleAlias+":"+relPath] = content
-	return nil
-}
+func newFakeBundleRepo() *fakeBundleRepo { return domaintest.NewBundleRepository() }
+func newFakeNodeRepo() *fakeNodeRepo     { return domaintest.NewNodeRepository() }
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,7 +40,7 @@ func tempDirWithMD(t *testing.T) string {
 }
 
 // seedConcept inserts a concept into repo under the given alias and relPath.
-func seedConcept(t *testing.T, repo *fakeNodeRepo, alias, relPath, body string) {
+func seedConcept(t *testing.T, repo *domaintest.NodeRepository, alias, relPath, body string) {
 	t.Helper()
 	ref := domain.ConceptRef{BundleAlias: alias, RelativePath: relPath}
 	concept := &domain.OKFConcept{
@@ -494,10 +354,9 @@ func TestReindexBundle_RemovesStaleChunks(t *testing.T) {
 		t.Fatalf("expected 2 chunks after first reindex, got %d", got)
 	}
 
-	// Remove b.md from the node repository.
-	nodeRepo.mu.Lock()
-	delete(nodeRepo.concepts, "b:b.md")
-	nodeRepo.mu.Unlock()
+	// Remove b.md from the node repository (direct map access is safe here;
+	// ReindexBundle returned and the next call hasn't started — no concurrency).
+	delete(nodeRepo.Concepts, "b:b.md")
 
 	// Second reindex: b.md should be gone from the store.
 	if err := svc.ReindexBundle(ctx, "b", embedder, store); err != nil {

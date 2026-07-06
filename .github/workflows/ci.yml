@@ -94,6 +94,24 @@ jobs:
             print "PASS: adapter/okf coverage " p "%"
           }'
 
+      - name: Coverage gate — adapter/mcp (≥65%)
+        run: |
+          go test -coverprofile=mcp.out ./internal/adapter/mcp/...
+          pct=$(go tool cover -func=mcp.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 65) { print "FAIL: adapter/mcp coverage " p "% is below 65%"; exit 1 }
+            print "PASS: adapter/mcp coverage " p "%"
+          }'
+
+      - name: Coverage gate — adapter/vectorstore (≥84%)
+        run: |
+          go test -coverprofile=vs.out ./internal/adapter/vectorstore/...
+          pct=$(go tool cover -func=vs.out | awk '/^total:/ { gsub(/%/,"",$3); print $3 }')
+          awk -v p="$pct" 'BEGIN {
+            if (p+0 < 84) { print "FAIL: adapter/vectorstore coverage " p "% is below 84%"; exit 1 }
+            print "PASS: adapter/vectorstore coverage " p "%"
+          }'
+
   integration:
     runs-on: ubuntu-latest
     steps:

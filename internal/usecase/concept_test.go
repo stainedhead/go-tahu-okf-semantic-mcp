@@ -464,7 +464,7 @@ func TestAppendLog_DeterministicTimestamp(t *testing.T) {
 	require.NoError(t, svc.WriteConcept(context.Background(), ref, makeConcept("note", "T", "body", nil)))
 
 	// Read the log file; its entry must contain the fixed timestamp.
-	logContent := nr.reserved["kb:log.md"]
+	logContent := nr.Reserved["kb:log.md"]
 	require.NotEmpty(t, logContent, "log.md was not written")
 	assert.Contains(t, logContent, "2024-01-15T12:00:00Z", "log entry should contain injected timestamp")
 }

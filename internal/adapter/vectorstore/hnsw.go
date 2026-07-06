@@ -178,14 +178,39 @@ func (s *HNSWStore) Search(_ context.Context, query []float32, scope domain.Scop
 
 // Delete removes chunks by ID from both the HNSW graph and the metadata map.
 // IDs not present in the store are silently ignored.
+//
+// Implementation note: the coder/hnsw library's graph.Delete leaves dangling
+// neighbour pointers that panic on the next Search call. We therefore rebuild
+// the graph from the surviving chunks after removal — O(n) but correct.
 func (s *HNSWStore) Delete(_ context.Context, ids []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Remove deleted IDs from the metadata map.
+	toDelete := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
-		s.graph.Delete(id)
+		toDelete[id] = struct{}{}
+	}
+	for id := range toDelete {
 		delete(s.chunks, id)
 	}
+
+	// Rebuild the graph from surviving chunks so no dangling pointers remain.
+	g := hnsw.NewGraph[string]()
+	g.M = s.graph.M
+	g.EfSearch = s.graph.EfSearch
+	g.Distance = s.graph.Distance
+	for _, c := range s.chunks {
+		if isZeroNorm(c.Embedding) {
+			continue
+		}
+		g.Add(hnsw.MakeNode(c.ID, c.Embedding))
+	}
+	s.graph = g
 	return nil
 }
 

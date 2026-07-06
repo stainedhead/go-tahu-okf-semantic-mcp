@@ -481,3 +481,227 @@ func TestHNSWStore_ScopePath_BoundaryEnforced(t *testing.T) {
 		t.Error("ScopePath boundary: 'notebook/index.md' must not match scope 'notes'")
 	}
 }
+
+// TestHNSWStore_Delete verifies that Delete removes chunks from both the HNSW
+// graph and the metadata map, and that the deleted chunk does not appear in
+// subsequent Search results (FR-R03).
+func TestHNSWStore_Delete(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	keep := makeChunk("keep:0", "kb", "keep.md", 0, norm([]float32{1, 0, 0, 0}))
+	gone := makeChunk("gone:0", "kb", "gone.md", 0, norm([]float32{0, 1, 0, 0}))
+
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{keep, gone}))
+
+	// Delete only the "gone" chunk.
+	require.NoError(t, s.Delete(ctx, []string{"gone:0"}))
+
+	// Search with a query that would have matched both chunks — only "keep" must survive.
+	query := norm([]float32{1, 1, 0, 0})
+	results, err := s.Search(ctx, query, domain.Scope{Kind: domain.ScopeGlobal}, 10)
+	require.NoError(t, err)
+
+	for _, r := range results {
+		if r.Source == "kb:gone.md" {
+			t.Errorf("deleted chunk 'gone:0' still returned by Search")
+		}
+	}
+
+	found := false
+	for _, r := range results {
+		if r.Source == "kb:keep.md" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("surviving chunk 'keep:0' not returned after Delete")
+	}
+}
+
+// TestHNSWStore_Delete_AbsentID verifies that deleting a non-existent ID is a no-op.
+func TestHNSWStore_Delete_AbsentID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	chunk := makeChunk("a:0", "kb", "a.md", 0, norm([]float32{1, 0, 0, 0}))
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{chunk}))
+
+	// Delete an ID that was never inserted — must not error or affect existing data.
+	require.NoError(t, s.Delete(ctx, []string{"nonexistent:0"}))
+
+	results, err := s.Search(ctx, norm([]float32{1, 0, 0, 0}), domain.Scope{Kind: domain.ScopeGlobal}, 10)
+	require.NoError(t, err)
+	if len(results) == 0 {
+		t.Error("existing chunk disappeared after deleting absent ID")
+	}
+}
+
+// TestHNSWStore_New_ValidationErrors verifies New rejects invalid parameters.
+func TestHNSWStore_New_ValidationErrors(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	cases := []struct {
+		name           string
+		dims, ef, m    int
+	}{
+		{"zero dims", 0, 20, 4},
+		{"zero ef", 4, 0, 4},
+		{"zero m", 4, 20, 0},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := vectorstore.New(filepath.Join(dir, tc.name+".hnsw"), tc.dims, tc.ef, tc.m)
+			if err == nil {
+				t.Errorf("New(%d,%d,%d): expected error, got nil", tc.dims, tc.ef, tc.m)
+			}
+		})
+	}
+}
+
+// TestHNSWStore_PersistLoad_RoundTrip verifies that chunks survive a
+// Persist → Load cycle.
+func TestHNSWStore_PersistLoad_RoundTrip(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "index.hnsw")
+
+	s, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+
+	chunk := makeChunk("rt:0", "kb", "rt.md", 0, norm([]float32{1, 0, 0, 0}))
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{chunk}))
+	require.NoError(t, s.Persist(ctx))
+
+	s2, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+	require.NoError(t, s2.Load(ctx))
+
+	results, err := s2.Search(ctx, norm([]float32{1, 0, 0, 0}), domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	if len(results) == 0 {
+		t.Error("PersistLoad: no results after Load")
+	}
+}
+
+// TestHNSWStore_Load_DimsMismatch verifies Load returns an error when the
+// persisted embedding dimensionality differs from the store's configured dims.
+func TestHNSWStore_Load_DimsMismatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "index.hnsw")
+
+	// Build and persist with dims=4.
+	s4, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+	chunk := makeChunk("x:0", "kb", "x.md", 0, norm([]float32{1, 0, 0, 0}))
+	require.NoError(t, s4.Upsert(ctx, []domain.EmbeddingChunk{chunk}))
+	require.NoError(t, s4.Persist(ctx))
+
+	// Open with dims=8 — should fail because persisted chunks have 4 dims.
+	s8, err := vectorstore.New(path, 8, testEfConstruction, testM)
+	require.NoError(t, err)
+	if err := s8.Load(ctx); err == nil {
+		t.Error("Load: expected dims-mismatch error, got nil")
+	}
+}
+
+// TestHNSWStore_Upsert_DimsMismatch verifies Upsert rejects chunks with wrong dims.
+func TestHNSWStore_Upsert_DimsMismatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	bad := makeChunk("bad:0", "kb", "bad.md", 0, []float32{1, 0}) // 2 dims, want 4
+	err := s.Upsert(ctx, []domain.EmbeddingChunk{bad})
+	if err == nil {
+		t.Error("Upsert with wrong dims: expected error, got nil")
+	}
+}
+
+// TestHNSWStore_Search_EmptyQuery verifies Search with a zero-norm query
+// returns empty results rather than NaN scores.
+func TestHNSWStore_Search_EmptyQuery(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	chunk := makeChunk("a:0", "kb", "a.md", 0, norm([]float32{1, 0, 0, 0}))
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{chunk}))
+
+	zeroQuery := []float32{0, 0, 0, 0}
+	results, err := s.Search(ctx, zeroQuery, domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	for _, r := range results {
+		if r.Score != r.Score { // NaN check
+			t.Errorf("Search returned NaN score for zero-norm query")
+		}
+	}
+}
+
+// TestHNSWStore_Load_ColdStart verifies Load on a store with no persisted files
+// is a no-op (cold start).
+func TestHNSWStore_Load_ColdStart(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "nonexistent.hnsw")
+	s, err := vectorstore.New(path, testDims, testEfConstruction, testM)
+	require.NoError(t, err)
+
+	// No persist files exist — Load must succeed silently.
+	require.NoError(t, s.Load(ctx))
+
+	// Store should be empty after cold-start Load.
+	results, err := s.Search(ctx, norm([]float32{1, 0, 0, 0}), domain.Scope{Kind: domain.ScopeGlobal}, 5)
+	require.NoError(t, err)
+	if len(results) != 0 {
+		t.Errorf("cold-start Load: expected 0 results, got %d", len(results))
+	}
+}
+
+// TestHNSWStore_Search_ScopeBundle verifies bundle-scoped search excludes
+// chunks from other bundles.
+func TestHNSWStore_Search_ScopeBundle(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	v := norm([]float32{1, 0, 0, 0})
+	a := makeChunk("a:0", "bundleA", "a.md", 0, v)
+	b := makeChunk("b:0", "bundleB", "b.md", 0, v)
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{a, b}))
+
+	scope := domain.Scope{Kind: domain.ScopeBundle, BundleAlias: "bundleA"}
+	results, err := s.Search(ctx, v, scope, 10)
+	require.NoError(t, err)
+
+	for _, r := range results {
+		if r.Source != "bundleA:a.md" {
+			t.Errorf("ScopeBundle: got %q from bundleB in results", r.Source)
+		}
+	}
+}
+
+// TestHNSWStore_Search_UnknownScope verifies an unknown scope kind returns
+// empty results (chunkMatchesScope default branch → false for all chunks).
+func TestHNSWStore_Search_UnknownScope(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newStore(t)
+
+	chunk := makeChunk("x:0", "kb", "x.md", 0, norm([]float32{1, 0, 0, 0}))
+	require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{chunk}))
+
+	// Use an undefined scope kind (255 = not in the iota).
+	unknownScope := domain.Scope{Kind: 255}
+	results, err := s.Search(ctx, norm([]float32{1, 0, 0, 0}), unknownScope, 5)
+	require.NoError(t, err)
+	if len(results) != 0 {
+		t.Errorf("UnknownScope: expected 0 results, got %d", len(results))
+	}
+}

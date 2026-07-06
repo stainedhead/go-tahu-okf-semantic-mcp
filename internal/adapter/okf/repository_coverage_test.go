@@ -139,36 +139,41 @@ func TestFileNodeRepository_ReadReserved_MissingFile(t *testing.T) {
 	}
 }
 
-// TestValidateConceptPath_RejectsTraversal exercises ValidateConceptPath directly.
-func TestValidateConceptPath_RejectsTraversal(t *testing.T) {
+// TestBundlePathResolver_RejectsTraversal exercises traversal rejection via BundlePathResolver.
+func TestBundlePathResolver_RejectsTraversal(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	r := okf.NewBundlePathResolver(map[string]string{"b": dir})
 
-	err := okf.ValidateConceptPath(dir, "../escape.md")
+	_, err := r.Resolve("b", "../escape.md")
 	if !errors.Is(err, domain.ErrPathEscape) {
-		t.Errorf("ValidateConceptPath traversal: got %v, want ErrPathEscape", err)
+		t.Errorf("Resolve traversal: got %v, want ErrPathEscape", err)
 	}
 }
 
-// TestValidateConceptPath_RejectsReserved verifies index.md and log.md are blocked.
-func TestValidateConceptPath_RejectsReserved(t *testing.T) {
+// TestBundlePathResolver_RejectsReserved verifies index.md and log.md are blocked.
+func TestBundlePathResolver_RejectsReservedViaRepo(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	r := okf.NewBundlePathResolver(map[string]string{"b": dir})
 
 	for _, reserved := range []string{"index.md", "log.md", "sub/index.md"} {
-		err := okf.ValidateConceptPath(dir, reserved)
+		_, err := r.Resolve("b", reserved)
 		if !errors.Is(err, domain.ErrReservedPath) {
-			t.Errorf("ValidateConceptPath(%q): got %v, want ErrReservedPath", reserved, err)
+			t.Errorf("Resolve(%q): got %v, want ErrReservedPath", reserved, err)
 		}
 	}
 }
 
-// TestValidateConceptPath_Valid verifies normal paths are accepted.
-func TestValidateConceptPath_Valid(t *testing.T) {
+// TestBundlePathResolver_ValidPath verifies normal paths are accepted.
+func TestBundlePathResolver_ValidPathViaRepo(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	err := okf.ValidateConceptPath(dir, "sub/note.md")
-	if err != nil {
-		t.Errorf("ValidateConceptPath(valid): got %v, want nil", err)
+	r := okf.NewBundlePathResolver(map[string]string{"b": dir})
+	_, err := r.Resolve("b", "sub/note.md")
+	// ErrNotExist is expected since the file doesn't actually exist on disk;
+	// ErrPathEscape/ErrReservedPath would indicate a validation failure.
+	if errors.Is(err, domain.ErrPathEscape) || errors.Is(err, domain.ErrReservedPath) {
+		t.Errorf("Resolve(valid path): got unexpected validation error: %v", err)
 	}
 }
