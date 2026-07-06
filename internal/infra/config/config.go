@@ -46,10 +46,19 @@ type Config struct {
 // TAHU_REGISTRY). Missing config file is treated as an empty file; all
 // settings fall back to defaults.
 func Load() (*Config, error) {
+	return LoadFromPath("")
+}
+
+// LoadFromPath reads configuration from the given path. If path is empty it
+// falls back to ~/.tahu/config.yaml. Env overrides are always applied on top.
+func LoadFromPath(path string) (*Config, error) {
 	cfg := defaults()
 
-	cfgPath := filepath.Join(homeDir(), ".tahu", "config.yaml")
-	data, err := os.ReadFile(cfgPath) //nolint:gosec // cfgPath is from UserHomeDir, not user input
+	cfgPath := path
+	if cfgPath == "" {
+		cfgPath = filepath.Join(homeDir(), ".tahu", "config.yaml")
+	}
+	data, err := os.ReadFile(cfgPath) //nolint:gosec // cfgPath is from flag or UserHomeDir, not raw user input
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("config.Load: read %s: %w", cfgPath, err)
 	}

@@ -203,7 +203,7 @@ func TestHNSWStore_Search_ScopePathFilters(t *testing.T) {
 	scope := domain.Scope{
 		Kind:        domain.ScopePath,
 		BundleAlias: "kb",
-		SubPath:     "notes/",
+		SubPath:     "notes",
 	}
 	results, err := s.Search(ctx, query, scope, 5)
 	if err != nil {
@@ -438,5 +438,46 @@ func TestHNSWStore_Load_NoopWhenFileAbsent(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Errorf("expected empty results after cold-start Load, got %d", len(results))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestHNSWStore_ScopePath_BoundaryEnforced
+//
+// Spec: ScopePath must not match paths that share a prefix but differ at a
+// directory boundary (e.g. "notes" must not match "notebook/…"). FR-014.
+// ---------------------------------------------------------------------------
+
+func TestHNSWStore_ScopePath_BoundaryEnforced(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+
+	upsertChunk := func(alias, path string, vec []float32) {
+		t.Helper()
+		require.NoError(t, s.Upsert(ctx, []domain.EmbeddingChunk{{
+			ID:          alias + ":" + path + ":0",
+			BundleAlias: alias,
+			ConceptPath: path,
+			ChunkIndex:  0,
+			Embedding:   vec,
+		}}))
+	}
+
+	v := []float32{1, 0, 0, 0}
+	upsertChunk("kb", "notes/deploy.md", v)
+	upsertChunk("kb", "notebook/index.md", v)
+	upsertChunk("kb", "notes", v) // exact match path
+
+	// Scope to "notes" — must match "notes" and "notes/deploy.md" but NOT "notebook/…"
+	scope := domain.Scope{Kind: domain.ScopePath, BundleAlias: "kb", SubPath: "notes"}
+	results, err := s.Search(ctx, v, scope, 10)
+	require.NoError(t, err)
+
+	paths := make(map[string]bool)
+	for _, r := range results {
+		paths[r.Source] = true
+	}
+	if paths["kb:notebook/index.md"] {
+		t.Error("ScopePath boundary: 'notebook/index.md' must not match scope 'notes'")
 	}
 }

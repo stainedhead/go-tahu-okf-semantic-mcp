@@ -38,7 +38,7 @@ func TestServeHTTP_Healthz(t *testing.T) {
 	addr := ln.Addr().String()
 	require.NoError(t, ln.Close())
 
-	srv := transport.NewMCPServer(mcpadapter.Services{})
+	srv := transport.NewMCPServer(mcpadapter.Services{}, "test")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -67,7 +67,7 @@ func TestServeHTTP_Healthz(t *testing.T) {
 // TestServeHTTP_NonLoopbackRejected verifies non-loopback binds are rejected (FR-021).
 func TestServeHTTP_NonLoopbackRejected(t *testing.T) {
 	t.Parallel()
-	srv := transport.NewMCPServer(mcpadapter.Services{})
+	srv := transport.NewMCPServer(mcpadapter.Services{}, "test")
 	err := transport.ServeHTTP(context.Background(), srv, "0.0.0.0:19999")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "non-loopback")
@@ -78,7 +78,7 @@ func TestServeStdio_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	srv := transport.NewMCPServer(mcpadapter.Services{})
+	srv := transport.NewMCPServer(mcpadapter.Services{}, "test")
 	err := transport.ServeStdio(ctx, srv)
 	assert.ErrorIs(t, err, context.Canceled)
 }

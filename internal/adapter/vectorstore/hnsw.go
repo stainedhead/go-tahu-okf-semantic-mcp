@@ -380,8 +380,11 @@ func chunkMatchesScope(c domain.EmbeddingChunk, scope domain.Scope) bool {
 	case domain.ScopeBundle:
 		return c.BundleAlias == scope.BundleAlias
 	case domain.ScopePath:
+		// Match the exact path or any path strictly under it (separated by "/").
+		// A bare HasPrefix("notes", "note") would incorrectly match "notebook/…".
 		return c.BundleAlias == scope.BundleAlias &&
-			strings.HasPrefix(c.ConceptPath, scope.SubPath)
+			(c.ConceptPath == scope.SubPath ||
+				strings.HasPrefix(c.ConceptPath, scope.SubPath+"/"))
 	default:
 		return false
 	}

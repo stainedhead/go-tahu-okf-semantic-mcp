@@ -11,15 +11,15 @@ import (
 )
 
 // SearchService implements semantic, keyword, and RAG search over OKF bundles.
-// It composes a domain.Embedder (for query encoding) with a domain.VectorStore
-// (for nearest-neighbour retrieval).
 //
-// The BM25 embedder also satisfies domain.Embedder, so KeywordSearch uses the
-// same call path as SemanticSearch — the difference lies in which concrete
-// Embedder is injected, not in the use-case logic.
+// Embedder encodes queries for SemanticSearch (dense/neural embeddings).
+// KeywordEmbedder encodes queries for KeywordSearch (sparse BM25); if nil,
+// KeywordSearch falls back to Embedder — callers that inject different
+// backends for the two paths get truly distinct behaviours (FR-013).
 type SearchService struct {
-	Embedder    domain.Embedder
-	VectorStore domain.VectorStore
+	Embedder        domain.Embedder
+	KeywordEmbedder domain.Embedder // if nil, falls back to Embedder
+	VectorStore     domain.VectorStore
 }
 
 // SemanticSearch returns up to topK chunks most similar to query, filtered by
@@ -45,17 +45,19 @@ func (s *SearchService) SemanticSearch(
 	return chunks, nil
 }
 
-// KeywordSearch returns up to topK chunks ranked by keyword relevance (BM25).
-// The BM25 embedder implements domain.Embedder so the call path is identical
-// to SemanticSearch — the distinction is which Embedder is wired in.
-// Implements FR-013.
+// KeywordSearch returns up to topK chunks ranked by keyword relevance.
+// Uses KeywordEmbedder if set, otherwise falls back to Embedder (FR-013).
 func (s *SearchService) KeywordSearch(
 	ctx context.Context,
 	query string,
 	scope domain.Scope,
 	topK int,
 ) ([]domain.ScoredChunk, error) {
-	vecs, err := s.Embedder.Embed(ctx, []string{query})
+	emb := s.KeywordEmbedder
+	if emb == nil {
+		emb = s.Embedder
+	}
+	vecs, err := emb.Embed(ctx, []string{query})
 	if err != nil {
 		return nil, fmt.Errorf("search.KeywordSearch embed: %w", err)
 	}

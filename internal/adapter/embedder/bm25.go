@@ -124,8 +124,9 @@ func (e *BM25Embedder) Index(id, text string) {
 }
 
 // buildVocab rebuilds the vocabulary from the current corpus.
-// Selects up to maxDims terms ordered by document frequency (descending),
-// breaking ties alphabetically. Caller must hold e.mu.
+// Selects up to maxDims terms ordered by IDF descending (lowest document
+// frequency first = highest discriminativeness), breaking ties alphabetically.
+// Caller must hold e.mu.
 func (e *BM25Embedder) buildVocab() {
 	type termFreq struct {
 		term string
@@ -137,9 +138,11 @@ func (e *BM25Embedder) buildVocab() {
 			terms = append(terms, termFreq{t, f})
 		}
 	}
+	// Sort by DF ascending (low DF = high IDF = most discriminative) so the
+	// vocabulary captures the terms that most distinguish documents from each other.
 	sort.Slice(terms, func(i, j int) bool {
 		if terms[i].freq != terms[j].freq {
-			return terms[i].freq > terms[j].freq
+			return terms[i].freq < terms[j].freq // ascending DF
 		}
 		return terms[i].term < terms[j].term
 	})

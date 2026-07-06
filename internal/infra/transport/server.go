@@ -20,10 +20,12 @@ import (
 
 // NewMCPServer creates an MCPServer with all 14 tools registered and FR-021
 // structured-logging middleware applied to every tool invocation.
-func NewMCPServer(svc mcpadapter.Services) *mcpserver.MCPServer {
+// version is embedded in the server identity (FR-019); pass the ldflags-injected
+// build version so agents can inspect it via the MCP server info endpoint.
+func NewMCPServer(svc mcpadapter.Services, version string) *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer(
 		"tahu",
-		"0.1.0",
+		version,
 		mcpserver.WithToolHandlerMiddleware(loggingMiddleware()),
 	)
 	mcpadapter.RegisterTools(srv, svc)
