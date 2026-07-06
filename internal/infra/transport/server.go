@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,22 +34,10 @@ func NewMCPServer(svc mcpadapter.Services, version string) *mcpserver.MCPServer 
 }
 
 // ServeStdio starts the MCP stdio transport and blocks until ctx is cancelled
-// or an error occurs (FR-022).
+// or an error occurs (FR-022). It uses StdioServer.Listen so that context
+// cancellation cleanly stops the read loop rather than leaving a goroutine running.
 func ServeStdio(ctx context.Context, srv *mcpserver.MCPServer) error {
-	errCh := make(chan error, 1)
-	go func() {
-		if err := mcpserver.ServeStdio(srv); err != nil {
-			errCh <- fmt.Errorf("transport.ServeStdio: %w", err)
-			return
-		}
-		errCh <- nil
-	}()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
-	}
+	return mcpserver.NewStdioServer(srv).Listen(ctx, os.Stdin, os.Stdout)
 }
 
 // ServeHTTP starts an HTTP/SSE MCP server on addr and blocks until ctx is

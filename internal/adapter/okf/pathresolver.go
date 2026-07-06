@@ -85,20 +85,30 @@ func symGuardExisting(absPath, canonicalRoot string) error {
 	return nil
 }
 
-// symGuardNew checks the final path component for symlinks without requiring
-// the path to exist. Use for new concept writes.
-// Per spec: if Lstat returns no error and entry is a symlink → reject.
-// If Lstat returns ErrNotExist → path is new and safe.
-func symGuardNew(absPath string) error {
-	info, err := os.Lstat(absPath)
+// symGuardNew walks every path component from canonicalRoot down to absPath,
+// checking each existing component for symlinks. A symlink at any level — not
+// just the final component — can redirect a write outside the bundle root.
+//
+// The walk stops at the first component that does not yet exist (safe: new path).
+// If any existing component is a symlink, ErrPathEscape is returned.
+func symGuardNew(absPath, canonicalRoot string) error {
+	rel, err := filepath.Rel(canonicalRoot, absPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil // new path, safe
-		}
-		return fmt.Errorf("lstat %q: %w", absPath, err)
+		return fmt.Errorf("symGuardNew: rel path: %w", err)
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("%w: %q is a symlink", domain.ErrPathEscape, absPath)
+	current := canonicalRoot
+	for _, component := range strings.Split(rel, string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		info, lerr := os.Lstat(current)
+		if lerr != nil {
+			if errors.Is(lerr, os.ErrNotExist) {
+				return nil // rest of path is new — safe
+			}
+			return fmt.Errorf("lstat %q: %w", current, lerr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%w: %q is a symlink", domain.ErrPathEscape, current)
+		}
 	}
 	return nil
 }
@@ -141,7 +151,7 @@ func (r *BundlePathResolver) ResolveNew(alias, relPath string) (string, error) {
 	if base == "index.md" || base == "log.md" {
 		return "", fmt.Errorf("%w: %q", domain.ErrReservedPath, base)
 	}
-	if err := symGuardNew(absPath); err != nil {
+	if err := symGuardNew(absPath, canon); err != nil {
 		return "", err
 	}
 	return absPath, nil
@@ -159,7 +169,7 @@ func (r *BundlePathResolver) ResolveReserved(alias, relPath string) (string, err
 	if err != nil {
 		return "", err
 	}
-	if err := symGuardNew(absPath); err != nil {
+	if err := symGuardNew(absPath, canon); err != nil {
 		return "", err
 	}
 	return absPath, nil

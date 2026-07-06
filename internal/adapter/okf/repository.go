@@ -2,6 +2,7 @@ package okf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,11 +21,15 @@ var _ domain.NodeRepository = (*FileNodeRepository)(nil)
 const maxFileBytes = 1 << 20
 
 // checkFileSize returns ErrInputTooLarge if the file at path exceeds maxFileBytes.
-// It does not return an error if the file does not exist — the caller handles that.
+// ErrNotExist is silently ignored — the caller's ReadFile will surface it.
+// All other stat errors (permission, I/O) are returned directly.
 func checkFileSize(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil // let the caller's ReadFile handle ErrNotExist
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("stat %q: %w", path, err)
 	}
 	if info.Size() > maxFileBytes {
 		return fmt.Errorf("%w: file is %d bytes (limit %d)", domain.ErrInputTooLarge, info.Size(), maxFileBytes)
@@ -198,6 +203,9 @@ func (f *FileNodeRepository) ListTypes(ctx context.Context, bundleAlias string) 
 
 	for _, ref := range refs {
 		absPath := filepath.Join(root, ref.RelativePath)
+		if checkFileSize(absPath) != nil {
+			continue // oversized or unreadable — skip silently
+		}
 		data, err := os.ReadFile(absPath) //nolint:gosec // path comes from List which walks the validated root
 		if err != nil {
 			continue

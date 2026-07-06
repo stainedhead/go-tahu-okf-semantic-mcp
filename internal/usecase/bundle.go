@@ -171,14 +171,9 @@ func (s *BundleService) ReindexBundle(
 		newChunkIDs = append(newChunkIDs, chunkID)
 	}
 
-	// 4. Delete all previously indexed chunks for this bundle.  This is done
-	// unconditionally (even when refs is empty) so that deleting the last
-	// concept in a bundle cleans up its stale vector-store entries.
-	if deleteErr := store.Delete(ctx, entry.ChunkIDs); deleteErr != nil {
-		return fmt.Errorf("ReindexBundle %q: delete stale chunks: %w", alias, deleteErr)
-	}
-
-	// 5. Embed and upsert — skip the network round-trip if there is nothing to index.
+	// 4. Embed and upsert new chunks first, so the existing index is preserved
+	// if the embedder fails. Chunk IDs are deterministic, so re-upserting an
+	// unchanged concept is idempotent.
 	if len(texts) > 0 {
 		embeddings, embedErr := embedder.Embed(ctx, texts)
 		if embedErr != nil {
@@ -190,6 +185,22 @@ func (s *BundleService) ReindexBundle(
 		if upsertErr := store.Upsert(ctx, chunks); upsertErr != nil {
 			return fmt.Errorf("ReindexBundle %q: upsert to vector store: %w", alias, upsertErr)
 		}
+	}
+
+	// 5. Delete only stale chunks — IDs present in the old index but not in
+	// the new set. This runs even when refs is empty (removes all old chunks).
+	newIDSet := make(map[string]struct{}, len(newChunkIDs))
+	for _, id := range newChunkIDs {
+		newIDSet[id] = struct{}{}
+	}
+	var staleIDs []string
+	for _, id := range entry.ChunkIDs {
+		if _, ok := newIDSet[id]; !ok {
+			staleIDs = append(staleIDs, id)
+		}
+	}
+	if deleteErr := store.Delete(ctx, staleIDs); deleteErr != nil {
+		return fmt.Errorf("ReindexBundle %q: delete stale chunks: %w", alias, deleteErr)
 	}
 
 	// 6. Stamp LastIndexedAt, record new chunk IDs, and persist.
