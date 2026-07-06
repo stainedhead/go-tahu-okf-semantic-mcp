@@ -17,9 +17,9 @@
 | 3  | Implement Product               | ✅ Complete | 2026-07-05 | 2026-07-06 | ~180 |
 | 4  | Documentation and User Docs     | ✅ Complete | 2026-07-06 | 2026-07-06 | ~15 |
 | 5  | Code and Design Review          | ✅ Complete | 2026-07-06 | 2026-07-06 | ~20 |
-| 6  | Prepare Review PRD              | 🔄 In Progress | 2026-07-06 | — | — |
-| 7  | Archive Original Spec           | ⬜ Pending | — | — | — |
-| 8  | Spec Review Fixes               | ⬜ Pending | — | — | — |
+| 6  | Prepare Review PRD              | ✅ Complete | 2026-07-06 | 2026-07-06 | ~10 |
+| 7  | Archive Original Spec           | ✅ Complete | 2026-07-06 | 2026-07-06 | ~2 |
+| 8  | Spec Review Fixes               | 🔄 In Progress | 2026-07-06 | — | — |
 | 9  | Implement Review Fixes          | ⬜ Pending | — | — | — |
 | 10 | Archive Fixes Spec              | ⬜ Pending | — | — | — |
 | 11 | Final Quality Pass              | ⬜ Pending | — | — | — |
