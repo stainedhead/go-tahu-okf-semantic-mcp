@@ -3,8 +3,10 @@ package okf_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/adapter/okf"
@@ -163,6 +165,25 @@ func TestFileNodeRepository_Put_WritesOnlyConceptFile_FIX002(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "log.md")); err == nil {
 		t.Error("FIX-002: Put must not create log.md; appendLog in use case is responsible")
 	}
+}
+
+// TestFileNodeRepository_WriteReserved_ConcurrentNoRace verifies that
+// concurrent WriteReserved calls on the same file are serialized by the
+// repository's write mutex and do not trigger the Go race detector.
+func TestFileNodeRepository_WriteReserved_ConcurrentNoRace(t *testing.T) {
+	dir := t.TempDir()
+	repo := okf.NewFileNodeRepository(map[string]string{"b": dir})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			content := fmt.Sprintf("entry %d\n", i)
+			_ = repo.WriteReserved(context.Background(), "b", "log.md", content)
+		}(i)
+	}
+	wg.Wait()
 }
 
 // TestFileNodeRepository_Get_PathEscape_FR019 verifies that a ConceptRef whose

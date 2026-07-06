@@ -231,6 +231,9 @@ func (f *FileNodeRepository) WriteReserved(_ context.Context, bundleAlias string
 		return err
 	}
 
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	absPath := filepath.Join(root, filepath.Clean(relPath))
 	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
 		return fmt.Errorf("WriteReserved %s/%s: mkdir: %w", bundleAlias, relPath, err)
