@@ -49,9 +49,11 @@ The automated code review of the `feat/code-and-design-quality-uplift` branch fo
 ## Non-Functional Requirements
 
 - **TDD:** Every fix must be driven RED→GREEN→REFACTOR. No production change without a failing test first.
+- **Code review per fix:** Each FR must be briefly reviewed (design, correctness, security) before moving to the next.
 - **Race detector:** `go test -race ./...` must remain green after every task.
 - **Lint:** `golangci-lint run ./...` must return 0 issues after every task.
-- **Parallel workstreams:** FR-R03, FR-R04, and FR-R05 are independent and may be implemented in parallel git worktrees.
+- **Parallel workstreams:** FR-R03, FR-R04, and FR-R05 are independent and may be implemented in parallel using agent teammates and git worktrees.
+- **Agent teammates:** Use worker agents for parallel-eligible tasks (FR-R03, FR-R04, FR-R05) — all worker agents use `claude-sonnet-4-6` as their model backend.
 
 ---
 
@@ -80,4 +82,4 @@ The automated code review of the `feat/code-and-design-quality-uplift` branch fo
 
 ## Open Questions
 
-- None. All decisions are made in the spec above.
+- **adapter/mcp coverage gap**: Current coverage is 61.4%; target is ≥75%. Before implementing FR-R04, scope which handlers lack test coverage and estimate new test count needed. If reaching 75% requires more than ~5 new test cases, the CI gate threshold may need to be revised downward (e.g., ≥65%) as a step-wise ratchet. Implementer decision to make before writing the gate.
