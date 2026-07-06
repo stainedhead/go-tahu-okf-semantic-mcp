@@ -13,6 +13,8 @@ import (
 
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/domain"
 	"github.com/stainedhead/go-tahu-okf-semantic-mcp/internal/usecase"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -394,6 +396,21 @@ func TestConceptService_ConcurrentWrite_LogPreservesAllEntries_FIX004(t *testing
 	if count != N {
 		t.Errorf("expected %d log entries, got %d\nlog:\n%s", N, count, logContent)
 	}
+}
+
+// TestConceptService_WriteConcept_RejectsTraversal validates that WriteConcept
+// rejects a RelativePath containing ".." components as defense-in-depth at the
+// use-case boundary.
+func TestConceptService_WriteConcept_RejectsTraversal(t *testing.T) {
+	t.Parallel()
+	svc := newConceptService(newFakeNodeRepo(), newFakeBundleRepo())
+	ref := domain.ConceptRef{BundleAlias: "b", RelativePath: "../escape.md"}
+	err := svc.WriteConcept(context.Background(), ref, &domain.OKFConcept{
+		Frontmatter: domain.OKFFrontmatter{Type: "note"},
+		Body:        "content",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrPathEscape)
 }
 
 // TestConceptService_WriteConcept_AllowsNonReservedBasename_FR011 guards

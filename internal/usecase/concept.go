@@ -125,6 +125,18 @@ func (s *ConceptService) WriteConcept(ctx context.Context, ref domain.ConceptRef
 		return fmt.Errorf("concept_write %s: %w", ref, domain.ErrReservedPath)
 	}
 
+	// Defense-in-depth: validate the ref at the use-case layer before handing off
+	// to the repository. The repository enforces full containment, but an explicit
+	// check here makes the boundary visible in code review.
+	if ref.RelativePath == "" {
+		return fmt.Errorf("WriteConcept: %w: empty relative path", domain.ErrPathEscape)
+	}
+	for _, part := range strings.Split(ref.RelativePath, "/") {
+		if part == ".." {
+			return fmt.Errorf("WriteConcept: %w: traversal in path", domain.ErrPathEscape)
+		}
+	}
+
 	// Serialize the full write sequence per bundle to prevent the
 	// ReadReserved→WriteReserved in appendLog from racing with concurrent
 	// WriteConcept calls (FIX-004).
